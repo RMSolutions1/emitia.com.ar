@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { FileText, Search, Calendar, Filter, RefreshCw, CheckCircle, XCircle, Clock, Plus, Printer, Eye, X, Trash2, Ban, FileDown, FilePlus, CloudDownload, AlertCircle, Mail, Send, Loader2, Download } from 'lucide-react';
+import { FileText, Search, Calendar, Filter, RefreshCw, CheckCircle, XCircle, Clock, Plus, Printer, Eye, X, Trash2, Ban, FileDown, FilePlus, CloudDownload, AlertCircle, Mail, Send, Loader2, Download, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PrintDocument, DocumentData, DocumentCompany, DocumentCustomer } from '@/components/print-document';
 import { getDocumentLetter } from '@/lib/document-codes';
 import { ErpPageShell, ErpKpiBox } from '@/components/erp/erp-page-shell';
+import { MpInvoicePaymentPanel } from '@/components/payments/mp-invoice-payment-panel';
 
 interface InvoiceItem {
   name?: string;
@@ -48,6 +49,7 @@ interface Invoice {
   otherTaxes?: number;
   exemptAmount?: number;
   total: number;
+  paidAmount?: number;
   status: string;
   items?: InvoiceItem[];
   observations?: string;
@@ -149,6 +151,8 @@ export function FacturasClient() {
   const [showAfipSync, setShowAfipSync] = useState(false);
   const [syncingAfip, setSyncingAfip] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showMpModal, setShowMpModal] = useState(false);
+  const [mpInvoice, setMpInvoice] = useState<Invoice | null>(null);
   const [emailRecipient, setEmailRecipient] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailInvoice, setEmailInvoice] = useState<Invoice | null>(null);
@@ -725,6 +729,15 @@ export function FacturasClient() {
                         <button onClick={() => openEmailModal(invoice)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Enviar por email">
                           <Mail className="h-4 w-4" />
                         </button>
+                        {(invoice.total - (invoice.paidAmount || 0)) > 0 && invoice.status !== 'anulada' && (
+                          <button
+                            onClick={() => { setMpInvoice(invoice); setShowMpModal(true); }}
+                            className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg"
+                            title="Cobrar con Mercado Pago"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </button>
+                        )}
                         {canCreateNCND(invoice) && (
                           <button onClick={() => handleCreateNCND(invoice, 'nc')} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg" title="Crear Nota de Crédito">
                             <FileDown className="h-4 w-4" />
@@ -1042,6 +1055,31 @@ export function FacturasClient() {
         </div>
       )}
 
+      {/* Mercado Pago Modal */}
+      {showMpModal && mpInvoice && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-sky-600" /> Cobrar con Mercado Pago
+              </h2>
+              <button onClick={() => { setShowMpModal(false); setMpInvoice(null); }} className="p-1 hover:bg-slate-100 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-3">
+              {mpInvoice.invoiceNumber} · {mpInvoice.customerName}
+            </p>
+            <MpInvoicePaymentPanel
+              invoiceId={mpInvoice.id}
+              invoiceNumber={mpInvoice.invoiceNumber}
+              total={mpInvoice.total}
+              paidAmount={mpInvoice.paidAmount || 0}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Email Modal */}
       {showEmailModal && emailInvoice && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1072,10 +1110,18 @@ export function FacturasClient() {
               />
 
               <p className="text-xs text-slate-400 mb-4">
-                Se enviará el comprobante en formato PDF al email indicado.
+                Se enviará el comprobante en formato PDF al email indicado. Podés generar cobro MP antes de enviar.
               </p>
 
-              <div className="flex gap-3">
+              <MpInvoicePaymentPanel
+                invoiceId={emailInvoice.id}
+                invoiceNumber={emailInvoice.invoiceNumber}
+                total={emailInvoice.total}
+                paidAmount={emailInvoice.paidAmount || 0}
+                compact
+              />
+
+              <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => { setShowEmailModal(false); setEmailRecipient(''); setEmailInvoice(null); }}
                   className="flex-1 px-4 py-2.5 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 font-medium"

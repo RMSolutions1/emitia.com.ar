@@ -183,6 +183,17 @@ export function MercadoPagoPanel() {
     if (res.ok) { toast.success('Eliminado'); load(); }
   };
 
+  const handleOAuthConnect = () => {
+    window.location.href = '/api/payments/mercadopago/oauth';
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mp') === 'connected') toast.success('Mercado Pago conectado vía OAuth');
+    if (params.get('mp') === 'error') toast.error('No se pudo conectar Mercado Pago. Usá credenciales manuales.');
+  }, []);
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -239,6 +250,18 @@ export function MercadoPagoPanel() {
           <h3 className="font-semibold text-slate-900 flex items-center gap-2">
             <Shield className="w-5 h-5 text-sky-600" /> Credenciales y ambiente
           </h3>
+          <div className="flex flex-wrap gap-2 p-3 bg-sky-50 border border-sky-200 rounded-xl">
+            <button
+              type="button"
+              onClick={handleOAuthConnect}
+              className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" /> Conectar con Mercado Pago (OAuth)
+            </button>
+            <p className="text-xs text-sky-800 self-center">
+              Requiere MP_APP_ID y MP_CLIENT_SECRET en el servidor. Alternativa: pegar tokens abajo.
+            </p>
+          </div>
           <p className="text-sm text-slate-600">
             Copiá las credenciales de <strong>prueba</strong> desde el panel MP → Tu aplicación → Credenciales de prueba.
           </p>

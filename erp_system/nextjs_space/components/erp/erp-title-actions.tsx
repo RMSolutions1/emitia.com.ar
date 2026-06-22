@@ -11,9 +11,11 @@ import {
   Building2,
   Crown,
   HelpCircle,
+  User,
 } from 'lucide-react';
 import { NotificationBell } from '@/components/notification-bell';
 import { CommandPalette } from '@/components/command-palette';
+import { ErpUserAvatar } from './erp-user-avatar';
 
 export function ErpTitleActions() {
   const { data: session } = useSession();
@@ -24,6 +26,7 @@ export function ErpTitleActions() {
 
   const userName = session?.user?.name || 'Usuario';
   const userEmail = session?.user?.email || '';
+  const userImage = session?.user?.image || null;
   const userRole = (session?.user as any)?.role || 'user';
   const companyName = (session?.user as any)?.companyName || null;
 
@@ -84,24 +87,34 @@ export function ErpTitleActions() {
             type="button"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="erp-titlebar-btn flex items-center gap-1.5 pl-1 pr-1.5"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="true"
           >
-            <span className="w-6 h-6 bg-white/20 border border-white/30 flex items-center justify-center text-[11px] font-bold">
-              {userName.charAt(0).toUpperCase()}
-            </span>
+            <ErpUserAvatar name={userName} image={userImage} size="sm" />
             <ChevronDown className={`w-3 h-3 hidden sm:block transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-[#b8c9dc] shadow-lg z-50 text-[#1a3a5c]">
-              <div className="px-3 py-2 border-b border-[#b8c9dc] bg-[#eef3f9]">
-                <p className="text-xs font-bold truncate">{userName}</p>
-                <p className="text-[10px] text-[#5c7291] truncate">{userEmail}</p>
-                {userRole === 'superadmin' && (
-                  <p className="text-[10px] text-purple-700 font-bold mt-1 flex items-center gap-1">
-                    <Crown className="w-3 h-3" /> Super Admin
-                  </p>
-                )}
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-[#b8c9dc] shadow-lg z-[110] text-[#1a3a5c]">
+              <div className="px-3 py-3 border-b border-[#b8c9dc] bg-[#eef3f9] flex items-center gap-3">
+                <ErpUserAvatar name={userName} image={userImage} size="md" className="border-[#9bb3cc] [&>span]:bg-[#2563ad] [&>span]:text-white" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">{userName}</p>
+                  <p className="text-[10px] text-[#5c7291] truncate">{userEmail}</p>
+                  {userRole === 'superadmin' && (
+                    <p className="text-[10px] text-purple-700 font-bold mt-1 flex items-center gap-1">
+                      <Crown className="w-3 h-3" /> Super Admin
+                    </p>
+                  )}
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => { router.push('/configuracion/perfil'); setUserMenuOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[#eef3f9]"
+              >
+                <User className="w-3.5 h-3.5" /> Mi perfil y avatar
+              </button>
               <button
                 type="button"
                 onClick={() => { router.push('/configuracion'); setUserMenuOpen(false); }}

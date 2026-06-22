@@ -19,30 +19,27 @@ export async function POST() {
     
     const ticketWSFE = await getTicketAcceso('wsfe', certPem, keyPem, environment);
 
-    const padronServices = ['ws_sr_padron_a13', 'ws_sr_padron_a10', 'ws_sr_padron_a5'] as const;
-    const padronResults: Record<string, boolean | string> = {};
-    let padronOk = false;
+    // Solo ws_sr_padron_a13 es obligatorio para EMITIA (A10/A5 no están en el certificado y no se usan)
+    let padronA13Ok = false;
     let padronError = '';
 
-    for (const svc of padronServices) {
-      try {
-        await getTicketAcceso(svc, certPem, keyPem, environment);
-        padronResults[svc] = true;
-        padronOk = true;
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        padronResults[svc] = msg.includes('notAuthorized') ? 'notAuthorized' : msg.slice(0, 120);
-        if (!padronError && msg.includes('notAuthorized')) {
-          padronError =
-            'El certificado emprenor (serial ' + (certificate?.serialNumber || '?') + ') no tiene ws_sr_padron_a13 habilitado en WSAA. ' +
-            'En ARCA → Administrador de Certificados → emprenor → Agregar servicio ws_sr_padron_a13.';
-        }
+    try {
+      await getTicketAcceso('ws_sr_padron_a13', certPem, keyPem, environment);
+      padronA13Ok = true;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('notAuthorized') || msg.includes('no autorizado')) {
+        padronError =
+          'El certificado emprenor (serial ' + (certificate?.serialNumber || '?') + ') no tiene ws_sr_padron_a13 habilitado en WSAA. ' +
+          'En ARCA → Administrador de Certificados → emprenor → Agregar servicio ws_sr_padron_a13.';
+      } else {
+        padronError = msg.slice(0, 200);
       }
     }
     
     return NextResponse.json({
       success: true,
-      message: padronOk
+      message: padronA13Ok
         ? 'Autenticación exitosa con ARCA'
         : 'Facturación OK. Padrón requiere habilitar ws_sr_padron_a13 en ARCA.',
       expirationTime: ticketWSFE.expirationTime,
@@ -52,9 +49,8 @@ export async function POST() {
       certificate,
       services: {
         wsfe: true,
-        ws_sr_padron_a13: padronResults.ws_sr_padron_a13 === true,
-        padronDetails: padronResults,
-        ...(padronError ? { padronError } : {}),
+        ws_sr_padron_a13: padronA13Ok,
+        ...(padronError && !padronA13Ok ? { padronError } : {}),
       },
     });
   } catch (error: any) {

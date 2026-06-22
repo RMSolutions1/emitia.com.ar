@@ -33,21 +33,6 @@ interface QuoteItem {
   subtotal: number;
 }
 
-interface Product {
-  id: string;
-  name: string;
-  sku: string;
-  price: number;
-  stock: number;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-}
-
 interface BusinessConfig {
   businessName: string;
   legalName?: string;
@@ -76,22 +61,11 @@ export default function PresupuestosClient() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [businessConfig, setBusinessConfig] = useState<BusinessConfig | null>(null);
   const [printQuote, setPrintQuote] = useState<Quote | null>(null);
-  
-  // Form state
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [quoteItems, setQuoteItems] = useState<{ productId: string; productName: string; productSku: string; quantity: number; unitPrice: number }[]>([]);
-  const [validDays, setValidDays] = useState(15);
-  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     fetchQuotes();
-    fetchProducts();
-    fetchCustomers();
     fetchBusinessConfig();
   }, [statusFilter]);
 
@@ -118,61 +92,6 @@ export default function PresupuestosClient() {
       console.error('Error:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch('/api/products');
-      const data = await res.json();
-      setProducts(data.products || data || []);
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  };
-
-  const fetchCustomers = async () => {
-    try {
-      const res = await fetch('/api/customers');
-      const data = await res.json();
-      setCustomers(data.customers || data || []);
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  };
-
-  const handleCreateQuote = async () => {
-    if (!selectedCustomer || quoteItems.length === 0) {
-      toast.error('Seleccioná un cliente y agregá productos');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/quotes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          customerEmail: selectedCustomer.email,
-          customerPhone: selectedCustomer.phone,
-          items: quoteItems,
-          validDays,
-          notes,
-        }),
-      });
-
-      if (res.ok) {
-        toast.success('Presupuesto creado exitosamente');
-        setShowNewModal(false);
-        resetForm();
-        fetchQuotes();
-      } else {
-        toast.error('Error al crear presupuesto');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Error al crear presupuesto');
     }
   };
 
@@ -213,30 +132,6 @@ export default function PresupuestosClient() {
       }
     } catch (error) {
       console.error('Error:', error);
-    }
-  };
-
-  const resetForm = () => {
-    setSelectedCustomer(null);
-    setQuoteItems([]);
-    setValidDays(15);
-    setNotes('');
-  };
-
-  const addProductToQuote = (product: Product) => {
-    const existing = quoteItems.find(i => i.productId === product.id);
-    if (existing) {
-      setQuoteItems(quoteItems.map(i => 
-        i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
-      ));
-    } else {
-      setQuoteItems([...quoteItems, {
-        productId: product.id,
-        productName: product.name,
-        productSku: product.sku,
-        quantity: 1,
-        unitPrice: product.price,
-      }]);
     }
   };
 
@@ -314,6 +209,7 @@ export default function PresupuestosClient() {
       ivaTotal: quote.tax,
       total: quote.total,
       observations: quote.notes || (quote.validUntil ? `Válido hasta: ${formatDate(quote.validUntil)}` : undefined),
+      template: 'profesional',
     };
   };
 
@@ -323,8 +219,6 @@ export default function PresupuestosClient() {
       condicionIva: 'consumidor_final',
     };
   };
-
-  const quoteTotal = quoteItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
 
   if (loading) {
     return (
@@ -338,13 +232,13 @@ export default function PresupuestosClient() {
 
   return (
     <ErpPageShell
-      title="Presupuestos"
-      subtitle="Crea y gestiona presupuestos para tus clientes"
+      title="Presupuestos emitidos"
+      subtitle="Listado e historial · emisión en Emitir Comprobante"
       module="FACTURACIÓN"
       userRole={userRole}
       onRefresh={fetchQuotes}
       toolbar={[
-        { label: 'Nuevo', icon: <Plus className="w-4 h-4" />, onClick: () => setShowNewModal(true) },
+        { label: 'Nuevo', icon: <Plus className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=presupuesto') },
       ]}
     >
         {/* Stats */}
@@ -532,124 +426,6 @@ export default function PresupuestosClient() {
                   </button>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Nuevo Presupuesto */}
-      {showNewModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Nuevo Presupuesto</h2>
-              <button onClick={() => { setShowNewModal(false); resetForm(); }} className="text-slate-500 hover:text-slate-700 text-2xl">&times;</button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[60vh] grid grid-cols-2 gap-6">
-              {/* Columna Izquierda - Cliente y Productos */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
-                  <select
-                    value={selectedCustomer?.id || ''}
-                    onChange={(e) => setSelectedCustomer(customers.find(c => c.id === e.target.value) || null)}
-                    className="w-full px-4 py-2 border rounded-lg"
-                  >
-                    <option value="">Seleccionar cliente</option>
-                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Válido por (días)</label>
-                  <input
-                    type="number"
-                    value={validDays}
-                    onChange={(e) => setValidDays(parseInt(e.target.value) || 15)}
-                    className="w-full px-4 py-2 border rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Agregar Productos</label>
-                  <div className="max-h-48 overflow-y-auto border rounded-lg">
-                    {products.slice(0, 20).map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => addProductToQuote(p)}
-                        className="w-full px-4 py-2 text-left hover:bg-slate-50 flex justify-between items-center border-b last:border-b-0"
-                      >
-                        <span>{p.name}</span>
-                        <span className="text-slate-500">{formatCurrency(p.price)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Columna Derecha - Items y Total */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Items del Presupuesto</label>
-                  <div className="border rounded-lg p-4 min-h-[200px]">
-                    {quoteItems.length === 0 ? (
-                      <p className="text-slate-400 text-center py-8">Agrega productos al presupuesto</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {quoteItems.map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 rounded">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{item.productName}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <input
-                                  type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => {
-                                    const qty = parseInt(e.target.value) || 1;
-                                    setQuoteItems(quoteItems.map((i, iIdx) => iIdx === idx ? { ...i, quantity: qty } : i));
-                                  }}
-                                  className="w-16 px-2 py-1 border rounded text-sm"
-                                  min="1"
-                                />
-                                <span className="text-sm text-slate-500">x {formatCurrency(item.unitPrice)}</span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-semibold">{formatCurrency(item.quantity * item.unitPrice)}</p>
-                              <button
-                                onClick={() => setQuoteItems(quoteItems.filter((_, i) => i !== idx))}
-                                className="text-red-500 text-sm hover:text-red-700"
-                              >
-                                Eliminar
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span>{formatCurrency(quoteTotal * 1.21)}</span>
-                  </div>
-                  <p className="text-sm text-slate-500">Incluye 21% IVA</p>
-                </div>
-              </div>
-            </div>
-            <div className="p-6 border-t flex gap-3 justify-end">
-              <button
-                onClick={() => { setShowNewModal(false); resetForm(); }}
-                className="px-4 py-2 border rounded-lg hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreateQuote}
-                disabled={!selectedCustomer || quoteItems.length === 0}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-sm shadow-blue-500/20 disabled:opacity-50"
-              >
-                Crear Presupuesto
-              </button>
             </div>
           </div>
         </div>

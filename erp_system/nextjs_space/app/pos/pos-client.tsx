@@ -6,6 +6,7 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, User, DollarSign, CreditCard
 import toast from 'react-hot-toast';
 import { PrintDocument, DocumentData, DocumentCompany, DocumentCustomer } from '@/components/print-document';
 import { ErpPageShell } from '@/components/erp/erp-page-shell';
+import { MpPaymentBrick } from '@/components/payments/mp-payment-brick';
 
 interface Product {
   id: string;
@@ -114,10 +115,13 @@ export function PosClient() {
   const [globalDiscount, setGlobalDiscount] = useState(0);
   const [businessConfig, setBusinessConfig] = useState<BusinessConfig | null>(null);
   const [mpConfigured, setMpConfigured] = useState(false);
+  const [mpPublicKey, setMpPublicKey] = useState<string | null>(null);
   const [mpQrConfigured, setMpQrConfigured] = useState(false);
-  const [mpMode, setMpMode] = useState<'checkout' | 'qr'>('checkout');
+  const [mpMode, setMpMode] = useState<'card' | 'qr' | 'checkout'>('card');
   const [mpLoading, setMpLoading] = useState(false);
   const [mpQrImage, setMpQrImage] = useState<string | null>(null);
+  const [showMpCardModal, setShowMpCardModal] = useState(false);
+  const [mpCardAmount, setMpCardAmount] = useState(0);
   const [generateInvoice, setGenerateInvoice] = useState(true);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -338,6 +342,7 @@ export function PosClient() {
       if (res.ok) {
         const data = await res.json();
         setMpConfigured(data.configured);
+        setMpPublicKey(data.publicKey || null);
         setMpQrConfigured(!!data.qrConfigured);
       }
     } catch (error) { console.error('Error checking MP config:', error); }
@@ -463,6 +468,7 @@ export function PosClient() {
     }
     if (paymentMethod === 'MercadoPago') {
       if (mpMode === 'qr') await handleMPQRPayment();
+      else if (mpMode === 'card') await handleMPCardPayment();
       else await handleMPPayment();
       return;
     }
@@ -626,6 +632,43 @@ export function PosClient() {
       totalDiscount,
     }));
     return { sale, total };
+  };
+
+  const handleMPCardPayment = async () => {
+    if (cart.length === 0) { toast.error('El carrito está vacío'); return; }
+    if (!mpPublicKey) {
+      toast.error('Mercado Pago no tiene public key configurada. Completá Integraciones.');
+      return;
+    }
+
+    setMpLoading(true);
+    try {
+      const pending = await createMpPendingSale();
+      if (!pending) return;
+      const { sale, total } = pending;
+      setMpPendingSaleId(sale.id);
+      setMpCardAmount(total);
+      setShowMpCardModal(true);
+    } catch (error) {
+      console.error('MP card init error:', error);
+      toast.error('Error al iniciar pago con tarjeta');
+    } finally {
+      setMpLoading(false);
+    }
+  };
+
+  const handleMpCardApproved = async (payload: { sale: any }) => {
+    setShowMpCardModal(false);
+    setMpQrImage(null);
+    sessionStorage.removeItem('mp_pending_sale');
+    const sale = payload.sale;
+    if (sale) {
+      toast.success('Pago con tarjeta aprobado');
+      await finalizeMpSale(sale);
+      setMpPendingSaleId(null);
+      clearCart();
+      fetchProducts();
+    }
   };
 
   const handleMPPayment = async () => {
@@ -1039,15 +1082,15 @@ export function PosClient() {
             </button>
           )}
           {mpConfigured && paymentMethod === 'MercadoPago' && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setMpMode('checkout')}
+                onClick={() => setMpMode('card')}
                 className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition ${
-                  mpMode === 'checkout' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  mpMode === 'card' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <ExternalLink className="w-3.5 h-3.5" /> Checkout Pro
+                <CreditCard className="w-3.5 h-3.5" /> Tarjeta in-app
               </button>
               <button
                 type="button"
@@ -1058,7 +1101,16 @@ export function PosClient() {
                   mpMode === 'qr' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <QrCode className="w-3.5 h-3.5" /> QR dinámico
+                <QrCode className="w-3.5 h-3.5" /> QR MP
+              </button>
+              <button
+                type="button"
+                onClick={() => setMpMode('checkout')}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition ${
+                  mpMode === 'checkout' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Link externo
               </button>
             </div>
           )}
@@ -1156,6 +1208,8 @@ export function PosClient() {
               ) : paymentMethod === 'MercadoPago' ? (
                 mpMode === 'qr' ? (
                   <><QrCode className="w-5 h-5" />Generar QR MP</>
+                ) : mpMode === 'card' ? (
+                  <><CreditCard className="w-5 h-5" />Cobrar con tarjeta</>
                 ) : (
                   <><ExternalLink className="w-5 h-5" />Pagar con MP</>
                 )
@@ -1193,6 +1247,42 @@ export function PosClient() {
           >
             Cancelar
           </button>
+        </div>
+      </div>
+    )}
+
+    {/* ========== MP CARD MODAL (in-app) ========== */}
+    {showMpCardModal && mpPendingSaleId && mpPublicKey && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-lg w-full max-h-[90vh] overflow-y-auto p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Pago con tarjeta</h3>
+              <p className="text-sm text-slate-500">Total: ${mpCardAmount.toLocaleString('es-AR')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowMpCardModal(false);
+                if (mpPendingSaleId) cancelMpPending(mpPendingSaleId);
+                setMpPendingSaleId(null);
+                sessionStorage.removeItem('mp_pending_sale');
+                sessionStorage.removeItem('mp_pending_snapshot');
+              }}
+              className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <MpPaymentBrick
+            publicKey={mpPublicKey}
+            amount={mpCardAmount}
+            saleId={mpPendingSaleId}
+            payerEmail={selectedCustomer?.email || undefined}
+            onApproved={({ sale }) => handleMpCardApproved({ sale })}
+            onError={(msg) => toast.error(msg)}
+            onPending={() => toast('Pago en proceso…')}
+          />
         </div>
       </div>
     )}

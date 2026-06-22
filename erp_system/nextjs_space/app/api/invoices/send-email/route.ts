@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { createMPPreference, getMPCredentials } from '@/lib/mercadopago';
+import { mpRefForInvoice } from '@/lib/mp-reference';
 
 export const dynamic = 'force-dynamic';
 
@@ -250,6 +252,50 @@ export async function POST(req: Request) {
     const company = invoice.company;
     const htmlContent = buildInvoiceHTML(invoice, company);
 
+    let mpPaymentBlock = '';
+    const pendingAmount = Math.max(0, invoice.total - (invoice.paidAmount || 0));
+    if (pendingAmount > 0) {
+      try {
+        const credentials = await getMPCredentials(companyId);
+        if (credentials) {
+          const preference = await createMPPreference(
+            {
+              items: [{ title: `Comprobante ${invoice.invoiceNumber}`, quantity: 1, unit_price: pendingAmount }],
+              external_reference: mpRefForInvoice(invoiceId),
+              statement_descriptor: (company.name || 'EMITIA').slice(0, 22),
+            },
+            companyId
+          );
+          if (preference) {
+            const checkoutUrl =
+              credentials.environment === 'production'
+                ? preference.init_point
+                : preference.sandbox_init_point;
+            await prisma.paymentTransaction.create({
+              data: {
+                companyId,
+                invoiceId,
+                provider: 'mercadopago',
+                preferenceId: preference.id,
+                status: 'pending',
+                amount: pendingAmount,
+                checkoutUrl,
+                metadata: JSON.stringify({ source: 'send-email', invoiceId }),
+              },
+            });
+            mpPaymentBlock = `
+              <div style="background:#eff6ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin:0 0 20px;text-align:center;">
+                <p style="margin:0 0 8px;font-weight:600;color:#0369a1;">Pagá online con Mercado Pago</p>
+                <p style="margin:0 0 12px;font-size:14px;color:#475569;">Saldo pendiente: ${formatCurrency(pendingAmount)}</p>
+                <a href="${checkoutUrl}" style="display:inline-block;background:#009ee3;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Pagar ahora</a>
+              </div>`;
+          }
+        }
+      } catch (mpErr) {
+        console.warn('[send-email] MP link skipped:', mpErr);
+      }
+    }
+
     // Generate PDF
     console.log('[send-email] Generating PDF for invoice:', invoice.invoiceNumber);
     const createRes = await fetch('https://apps.abacus.ai/api/createConvertHtmlToPdfRequest', {
@@ -342,6 +388,7 @@ export async function POST(req: Request) {
           </div>
           
           ${invoice.cae ? `<p style="font-size:12px;color:#16a34a;margin:0 0 20px;">✅ CAE: ${invoice.cae}</p>` : ''}
+          ${mpPaymentBlock}
           
           <p style="color:#64748b;font-size:13px;margin:0 0 8px;">El comprobante en formato PDF se encuentra adjunto a este email.</p>
           <p style="color:#94a3b8;font-size:11px;margin:20px 0 0;border-top:1px solid #e2e8f0;padding-top:16px;">Este email fue enviado desde <strong>${companyName}</strong> a través de EMITIA.</p>

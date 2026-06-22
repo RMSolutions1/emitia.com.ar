@@ -77,6 +77,7 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           name: user.name,
+          image: user.image,
           role: user.role,
           companyId: user.companyId,
           companyName: user.company?.name || null,
@@ -86,13 +87,18 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = (user as any).id;
         token.role = (user as any).role;
         token.companyId = (user as any).companyId;
         token.companyName = (user as any).companyName;
         token.companyPlan = (user as any).companyPlan;
+        token.picture = (user as any).image || null;
+      }
+      if (trigger === 'update' && session) {
+        if (session.name !== undefined) token.name = session.name;
+        if (session.image !== undefined) token.picture = session.image;
       }
       return token;
     },
@@ -103,6 +109,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).companyId = token.companyId;
         (session.user as any).companyName = token.companyName;
         (session.user as any).companyPlan = token.companyPlan;
+        session.user.name = token.name as string | undefined;
+        session.user.image = (token.picture as string | null) || null;
       }
       return session;
     },
@@ -123,6 +131,7 @@ declare module 'next-auth' {
       id: string;
       name?: string | null;
       email?: string | null;
+      image?: string | null;
       role: string;
       companyId: string | null;
       companyName: string | null;

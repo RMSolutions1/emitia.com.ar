@@ -68,7 +68,9 @@ function NavDropdown({
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="true"
         className={`erp-module-tab ${sectionActive ? 'erp-module-tab-active' : ''}`}
       >
         {section.label}
@@ -95,9 +97,11 @@ export function ErpModuleNav({ mobileOpen, onCloseMobile }: { mobileOpen?: boole
         <div className="lg:hidden fixed inset-0 bg-black/40 z-40" onClick={onCloseMobile} aria-hidden />
       )}
       <nav
-        className={`erp-module-nav flex items-center gap-0.5 px-2 overflow-x-auto shrink-0 ${
-          mobileOpen ? 'lg:flex' : 'hidden lg:flex'
-        } ${mobileOpen ? 'fixed left-0 top-[4.5rem] bottom-0 w-64 z-50 flex-col items-stretch overflow-y-auto py-2 bg-[#eef3f9] border-r border-[#b8c9dc]' : ''}`}
+        className={`erp-module-nav flex items-center gap-0.5 px-2 shrink-0 ${
+          mobileOpen
+            ? 'fixed left-0 top-[4.5rem] bottom-0 w-64 z-50 flex-col items-stretch overflow-y-auto py-2 bg-[#eef3f9] border-r border-[#b8c9dc]'
+            : 'hidden lg:flex overflow-visible'
+        }`}
       >
         {mobileOpen && (
           <div className="flex items-center justify-between px-3 pb-2 border-b border-[#b8c9dc] mb-2 lg:hidden">

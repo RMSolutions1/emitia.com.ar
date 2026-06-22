@@ -4,13 +4,8 @@ import { ReactNode } from 'react';
 import {
   FilePlus2,
   Trash2,
-  ChevronFirst,
-  ChevronLeft,
-  ChevronRight,
-  ChevronLast,
   Search,
   Printer,
-  Info,
   Save,
 } from 'lucide-react';
 import { ErpAppChrome } from './erp-app-chrome';
@@ -47,7 +42,7 @@ interface ErpDocumentShellProps {
 export function ErpDocumentShell({
   title,
   subtitle,
-  module = 'VENTAS',
+  module = 'FACTURACIÓN',
   userRole = 'ADMIN',
   statusText = 'Listo',
   onNew,
@@ -70,8 +65,7 @@ export function ErpDocumentShell({
     { label: 'Eliminar', icon: <Trash2 className="w-4 h-4" />, onClick: onDelete, shortcut: 'Ctrl+E' },
     { label: 'Buscar', icon: <Search className="w-4 h-4" />, onClick: onSearch, shortcut: 'Ctrl+B' },
     { label: 'Imprimir', icon: <Printer className="w-4 h-4" />, onClick: onPrint, shortcut: 'Ctrl+I' },
-    { label: 'Info', icon: <Info className="w-4 h-4" /> },
-  ];
+  ].filter((a) => !!a.onClick);
 
   const toolbar = (
     <>
@@ -88,11 +82,6 @@ export function ErpDocumentShell({
           <span className="text-[10px] text-[#1a3a5c]">{action.label}</span>
         </button>
       ))}
-      <div className="w-px h-8 bg-[#b8c9dc] mx-1" />
-      <button type="button" className="erp-toolbtn p-1.5" title="Primero"><ChevronFirst className="w-4 h-4" /></button>
-      <button type="button" className="erp-toolbtn p-1.5" title="Anterior"><ChevronLeft className="w-4 h-4" /></button>
-      <button type="button" className="erp-toolbtn p-1.5" title="Siguiente"><ChevronRight className="w-4 h-4" /></button>
-      <button type="button" className="erp-toolbtn p-1.5" title="Último"><ChevronLast className="w-4 h-4" /></button>
     </>
   );
 

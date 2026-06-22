@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, TrendingUp, Package, Users, Download, Calendar, DollarSign, ShoppingCart, FileText, Percent, ArrowUpDown } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, TrendingUp, Package, Users, Download, Calendar, DollarSign, ShoppingCart, FileText, Percent, ArrowUpDown, BookOpen, ExternalLink } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement } from 'chart.js';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import * as XLSX from 'xlsx';
@@ -655,6 +656,18 @@ export function ReportesClient() {
             {/* ═══════ IVA VENTAS ═══════ */}
             {activeTab === 'iva_ventas' && ivaVentasData && (
               <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-sm text-blue-900">
+                    <BookOpen className="w-5 h-5 text-blue-600 shrink-0" />
+                    <span>Para presentación mensual AFIP (CITI / export oficial) usá el módulo dedicado.</span>
+                  </div>
+                  <Link
+                    href="/libro-iva"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                  >
+                    Abrir Libro IVA <ExternalLink className="w-4 h-4" />
+                  </Link>
+                </div>
                 {/* Totals Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white rounded-2xl shadow-sm p-5">
@@ -735,6 +748,15 @@ export function ReportesClient() {
             {/* ═══════ IVA COMPRAS ═══════ */}
             {activeTab === 'iva_compras' && ivaComprasData && (
               <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-sm text-violet-900">
+                    <BookOpen className="w-5 h-5 text-violet-600 shrink-0" />
+                    <span>Libro IVA Compras para AFIP: export CITI en el módulo Libro IVA.</span>
+                  </div>
+                  <Link href="/libro-iva" className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700">
+                    Abrir Libro IVA <ExternalLink className="w-4 h-4" />
+                  </Link>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white rounded-2xl shadow-sm p-5">
                     <p className="text-sm text-slate-500">Neto Gravado</p>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { getMPPayment, getMPCredentials, syncMpTransactionFromPayment, validateMpWebhookSignature } from '@/lib/mercadopago';
 import { completePendingSale } from '@/lib/mp-sale';
+import { completeInvoicePayment, resolveInvoiceCompanyId } from '@/lib/mp-invoice';
+import { parseMpExternalReference } from '@/lib/mp-reference';
 
 async function resolveCompanyId(
   transaction: { metadata?: string | null; saleId?: string | null; companyId?: string | null } | null,
@@ -22,6 +24,11 @@ async function resolveCompanyId(
     if (sale?.companyId) return sale.companyId;
   }
   if (payment.external_reference) {
+    const parsed = parseMpExternalReference(payment.external_reference);
+    if (parsed?.type === 'invoice') {
+      const invCompany = await resolveInvoiceCompanyId(parsed.id);
+      if (invCompany) return invCompany;
+    }
     const sale = await prisma.sale.findUnique({
       where: { id: payment.external_reference },
       select: { companyId: true },
@@ -73,9 +80,23 @@ async function handlePaymentNotification(
 
   await syncMpTransactionFromPayment(payment, companyId);
 
-  const saleId = transaction?.saleId || payment.external_reference;
-  if (payment.status === 'approved' && saleId) {
-    await completePendingSale(saleId, `mercadopago - ${payment.payment_method_id || 'mp'}`);
+  const parsedRef = parseMpExternalReference(payment.external_reference);
+  if (payment.status === 'approved' && parsedRef?.type === 'invoice') {
+    await completeInvoicePayment(parsedRef.id, payment.transaction_amount);
+  } else if (payment.status === 'approved' && parsedRef?.type === 'saas') {
+    await prisma.company.update({
+      where: { id: parsedRef.id },
+      data: {
+        paymentStatus: 'paid',
+        paymentMethod: 'mercadopago',
+        nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } else if (payment.status === 'approved') {
+    const saleId = transaction?.saleId || (parsedRef?.type === 'sale' ? parsedRef.id : payment.external_reference);
+    if (saleId) {
+      await completePendingSale(saleId, `mercadopago - ${payment.payment_method_id || 'mp'}`);
+    }
   }
 }
 

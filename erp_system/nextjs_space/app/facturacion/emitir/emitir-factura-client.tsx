@@ -22,6 +22,8 @@ import { useSearchParams } from 'next/navigation';
 import { PrintDocument, DocumentData, DocumentCompany, DocumentCustomer } from '@/components/print-document';
 import { getDocumentLetter } from '@/lib/document-codes';
 import { ErpDocumentShell, ErpFieldRow } from '@/components/erp/erp-document-shell';
+import { DocumentEmissionTabs } from '@/components/erp/document-emission-tabs';
+import { MpInvoicePaymentPanel } from '@/components/payments/mp-invoice-payment-panel';
 
 interface Product {
   id: string;
@@ -882,6 +884,7 @@ export function EmitirFacturaClient() {
       serviceStartDate: createdInvoice.serviceStartDate,
       serviceEndDate: createdInvoice.serviceEndDate,
       currency: 'ARS',
+      template: 'profesional',
       associatedInvoice: linkedFacturaData && refFactura ? {
         documentCode: linkedFacturaData.documentCode,
         documentLetter: linkedFacturaData.documentCode
@@ -982,6 +985,18 @@ export function EmitirFacturaClient() {
                   ⚠️ No se pudo obtener CAE de AFIP. El comprobante fue guardado pero no tiene valor fiscal hasta obtener el CAE.
                 </div>
               )}
+              {createdInvoice.id && createdInvoice.total > 0 && (
+                <div className="mb-4 text-left">
+                  <MpInvoicePaymentPanel
+                    invoiceId={createdInvoice.id}
+                    invoiceNumber={createdInvoice.invoiceNumber}
+                    total={createdInvoice.total}
+                    paidAmount={createdInvoice.paidAmount || 0}
+                    customerEmail={createdInvoice.customerEmail}
+                    compact
+                  />
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowPrintPreview(true)}
@@ -1013,7 +1028,9 @@ export function EmitirFacturaClient() {
       )}
 
       <ErpDocumentShell
-        title={`Comprobantes de venta — ${selectedDocType?.name || 'Factura B'}`}
+        title={`Emisión de comprobantes — ${selectedDocType?.name || 'Factura B'}`}
+        subtitle="Comprobantes fiscales con CAE ARCA"
+        module="FACTURACIÓN"
         statusText={loading ? 'Guardando comprobante…' : `Items: ${items.filter(i => i.description).length}`}
         onNew={resetForm}
         onSave={handleSubmit}
@@ -1022,6 +1039,8 @@ export function EmitirFacturaClient() {
         saveLoading={loading}
         saveLabel="Emitir comprobante"
         header={
+          <>
+          <DocumentEmissionTabs />
           <div className="grid lg:grid-cols-2 gap-x-6 gap-y-0">
             <ErpFieldRow label="Cliente">
               <div className="flex gap-1">
@@ -1086,6 +1105,7 @@ export function EmitirFacturaClient() {
               <input type="date" value={paymentDueDate} onChange={(e) => setPaymentDueDate(e.target.value)} className="erp-input w-36" />
             </ErpFieldRow>
           </div>
+          </>
         }
         observations={
           <textarea

@@ -202,9 +202,9 @@ export function DashboardClient() {
       refreshing={loading}
       toolbar={[
         { label: 'POS', icon: <ShoppingCart className="w-4 h-4" />, onClick: () => router.push('/pos') },
-        { label: 'Facturar', icon: <Receipt className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir') },
-        { label: 'Ticket', icon: <Printer className="w-4 h-4" />, onClick: () => router.push('/facturacion/ticket') },
-        { label: 'Remito', icon: <Truck className="w-4 h-4" />, onClick: () => router.push('/facturacion/remito') },
+        { label: 'Facturar', icon: <Receipt className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=factura') },
+        { label: 'Presupuesto', icon: <FileSpreadsheet className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=presupuesto') },
+        { label: 'Remito', icon: <Truck className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=remito') },
         { label: 'Clientes', icon: <Users className="w-4 h-4" />, onClick: () => router.push('/clientes') },
         { label: 'Stock', icon: <Package className="w-4 h-4" />, onClick: () => router.push('/inventario') },
       ]}
@@ -287,12 +287,12 @@ export function DashboardClient() {
       {/* ==================== QUICK ACTIONS ==================== */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
         {[
-          { label: 'Nueva Venta', icon: ShoppingCart, href: '/pos', gradient: 'from-emerald-500 to-emerald-600' },
-          { label: 'Facturar', icon: Receipt, href: '/facturacion/emitir', gradient: 'from-blue-500 to-blue-600' },
-          { label: 'Ticket', icon: Printer, href: '/facturacion/ticket', gradient: 'from-sky-500 to-sky-600' },
-          { label: 'Remito', icon: Truck, href: '/facturacion/remito', gradient: 'from-teal-500 to-teal-600' },
+          { label: 'Punto de Venta', icon: ShoppingCart, href: '/pos', gradient: 'from-emerald-500 to-emerald-600' },
+          { label: 'Facturar', icon: Receipt, href: '/facturacion/emitir?modo=factura', gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Presupuesto', icon: FileSpreadsheet, href: '/facturacion/emitir?modo=presupuesto', gradient: 'from-indigo-500 to-indigo-600' },
+          { label: 'Remito', icon: Truck, href: '/facturacion/emitir?modo=remito', gradient: 'from-teal-500 to-teal-600' },
           { label: 'Importar IA', icon: Sparkles, href: '/inventario/importar', gradient: 'from-purple-500 to-purple-600' },
-          { label: 'Presupuesto', icon: FileSpreadsheet, href: '/presupuestos', gradient: 'from-indigo-500 to-indigo-600' },
+          { label: 'Comprobantes', icon: Receipt, href: '/facturas', gradient: 'from-sky-500 to-sky-600' },
         ].map((a, i) => (
           <button key={a.label} onClick={() => router.push(a.href)}
             className={`dash-quick-action bg-gradient-to-br ${a.gradient} animate-fade-in-up stagger-${i + 1}`}>

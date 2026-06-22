@@ -302,7 +302,7 @@ export default function AFIPConfigClient() {
                       <p className="font-medium text-green-700 mb-1">Servicios autorizados:</p>
                       <p>{authResult.services.wsfe ? '✅' : '❌'} Facturación Electrónica (wsfe)</p>
                       <p>{authResult.services.ws_sr_padron_a13 ? '✅' : '❌'} Consulta Padrón A13</p>
-                      {authResult.services.padronError && (
+                      {!authResult.services.ws_sr_padron_a13 && authResult.services.padronError && (
                         <div className="text-red-600 text-xs mt-1 space-y-1">
                           <p>Error padrón: {authResult.services.padronError}</p>
                           <p>

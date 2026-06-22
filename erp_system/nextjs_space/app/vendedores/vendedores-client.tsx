@@ -127,7 +127,7 @@ export function VendedoresClient() {
       <ErpPageShell
         title="Vendedores"
         subtitle="Gestión de equipo de ventas y comisiones"
-        module="GESTIÓN"
+        module="FINANZAS"
         userRole={userRole}
         statusText="Cargando"
       >
@@ -142,7 +142,7 @@ export function VendedoresClient() {
     <ErpPageShell
       title="Vendedores"
       subtitle="Gestión de equipo de ventas y comisiones"
-      module="GESTIÓN"
+      module="FINANZAS"
       userRole={userRole}
       onRefresh={fetchSellers}
       toolbar={[

@@ -18,6 +18,7 @@ import {
 import toast from 'react-hot-toast';
 import { PrintDocument, DocumentData, DocumentCompany, DocumentCustomer } from '@/components/print-document';
 import { ErpDocumentShell } from '@/components/erp/erp-document-shell';
+import { DocumentEmissionTabs } from '@/components/erp/document-emission-tabs';
 import { useErpSession } from '@/components/erp/use-erp-session';
 
 interface Product {
@@ -216,6 +217,8 @@ export function EmitirRemitoClient() {
           subtotal: 0,
           total: 0,
           transportInfo,
+          template: 'profesional',
+          observations,
         };
         setPrintData(docData);
         setShowPrint(true);
@@ -260,6 +263,8 @@ export function EmitirRemitoClient() {
       subtotal: 0,
       total: 0,
       transportInfo: remito.notes || '',
+      template: 'profesional',
+      observations: remito.observations,
     };
     // Set customer from remito history data
     setSelectedCustomer({
@@ -310,8 +315,8 @@ export function EmitirRemitoClient() {
 
   return (
     <ErpDocumentShell
-      title="Emitir Remito"
-      subtitle="Comprobante de entrega de mercadería"
+      title="Emisión de comprobantes — Remito"
+      subtitle="Comprobante de entrega · mismo formato de impresión"
       module="FACTURACIÓN"
       userRole={userRole}
       onNew={resetForm}
@@ -319,9 +324,11 @@ export function EmitirRemitoClient() {
       onCancel={resetForm}
       saveLoading={loading}
       saveDisabled={showHistory || !selectedCustomer}
-      saveLabel="Emitir Remito"
+      saveLabel="Emitir remito"
       header={
-        <div className="flex justify-end">
+        <>
+          <DocumentEmissionTabs />
+          <div className="flex justify-end">
           <button
             type="button"
             onClick={() => { setShowHistory(!showHistory); if (!showHistory) fetchHistory(); }}
@@ -331,6 +338,7 @@ export function EmitirRemitoClient() {
             {showHistory ? 'Nuevo Remito' : 'Historial'}
           </button>
         </div>
+        </>
       }
     >
         {/* History View */}

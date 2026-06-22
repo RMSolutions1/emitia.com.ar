@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Wallet, Users, Search, Eye, ArrowUpRight, ArrowDownRight, DollarSign, AlertCircle, FileText, CheckCircle, Printer } from 'lucide-react';
+import { Wallet, Users, Search, Eye, ArrowUpRight, ArrowDownRight, DollarSign, AlertCircle, FileText, CheckCircle, Printer, CreditCard, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PrintDocument, DocumentCompany, DocumentCustomer, DocumentData } from '@/components/print-document';
 import { ErpPageShell, ErpKpiBox } from '@/components/erp/erp-page-shell';
 import { useErpSession } from '@/components/erp/use-erp-session';
+import { MpInvoicePaymentPanel } from '@/components/payments/mp-invoice-payment-panel';
 
 interface CustomerAccount {
   id: string;
@@ -59,6 +62,7 @@ interface InvoicePayment {
 
 export default function CuentasCorrientesClient() {
   const { userRole } = useErpSession();
+  const router = useRouter();
   const [accounts, setAccounts] = useState<CustomerAccount[]>([]);
   const [stats, setStats] = useState({ totalAccounts: 0, totalDebt: 0, totalCredit: 0, accountsWithDebt: 0 });
   const [loading, setLoading] = useState(true);
@@ -162,6 +166,7 @@ export default function CuentasCorrientesClient() {
         setLastReceipt(receipt);
         toast.success(`Recibo ${receipt.receiptNumber} creado`);
         setShowPaymentModal(false);
+        setShowReceipt(true);
         fetchAccounts();
         fetchAccountDetails(selectedAccount.customerId);
       } else {
@@ -175,7 +180,7 @@ export default function CuentasCorrientesClient() {
   };
 
   const PAYMENT_LABELS: Record<string, string> = {
-    cash: 'Efectivo', transfer: 'Transferencia', check: 'Cheque', card: 'Tarjeta',
+    cash: 'Efectivo', transfer: 'Transferencia', check: 'Cheque', card: 'Tarjeta', mercadopago: 'Mercado Pago',
   };
 
   const DOC_CODE_LABELS: Record<string, string> = {
@@ -215,6 +220,10 @@ export default function CuentasCorrientesClient() {
       module="FINANZAS"
       userRole={userRole}
       onRefresh={fetchAccounts}
+      toolbar={[
+        { label: 'Recibos', icon: <FileText className="w-4 h-4" />, onClick: () => router.push('/recibos') },
+        { label: 'Recibo fiscal', icon: <ExternalLink className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=factura') },
+      ]}
     >
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -443,6 +452,29 @@ export default function CuentasCorrientesClient() {
               <p className="text-slate-500 text-sm">{selectedAccount.customer.name}</p>
             </div>
             <div className="p-6 space-y-4 overflow-y-auto max-h-[60vh]">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+                <strong>Recibo interno REC-*</strong> — no tiene CAE AFIP. Para recibo fiscal emití{' '}
+                <button type="button" onClick={() => router.push('/facturacion/emitir?modo=factura')} className="underline font-medium">
+                  Recibo B/C
+                </button>{' '}
+                o usá Mercado Pago abajo para cobro digital.
+              </div>
+
+              {/* Cobro Mercado Pago sobre primera factura con saldo */}
+              {invoicePayments.filter((ip) => ip.pending > 0).length > 0 && (
+                <MpInvoicePaymentPanel
+                  invoiceId={invoicePayments.find((ip) => ip.pending > 0)!.invoiceId}
+                  invoiceNumber={invoicePayments.find((ip) => ip.pending > 0)!.invoiceNumber}
+                  total={invoicePayments.find((ip) => ip.pending > 0)!.total}
+                  paidAmount={(invoicePayments.find((ip) => ip.pending > 0)!.total - invoicePayments.find((ip) => ip.pending > 0)!.pending)}
+                  customerEmail={selectedAccount.customer.email || undefined}
+                  customerPhone={selectedAccount.customer.phone || undefined}
+                  customerName={selectedAccount.customer.name}
+                  companyName={businessConfig?.businessName}
+                  compact
+                />
+              )}
+
               {/* Pending invoices to pay */}
               {invoicePayments.length > 0 && (
                 <div>
@@ -490,6 +522,7 @@ export default function CuentasCorrientesClient() {
                   <option value="transfer">Transferencia</option>
                   <option value="check">Cheque</option>
                   <option value="card">Tarjeta</option>
+                  <option value="mercadopago">Mercado Pago (registro manual)</option>
                 </select>
               </div>
 
@@ -545,6 +578,7 @@ export default function CuentasCorrientesClient() {
             total: lastReceipt.totalAmount,
             template: 'profesional',
             currency: 'ARS',
+            observations: 'Comprobante interno de cobranza — NO FISCAL (sin CAE). Para recibo fiscal AFIP use Emitir Comprobante → Recibo B/C.',
           }}
           onClose={() => setShowReceipt(false)}
         />

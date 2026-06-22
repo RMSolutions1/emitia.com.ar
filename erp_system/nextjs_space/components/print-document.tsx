@@ -90,6 +90,11 @@ export interface DocumentData {
   caeExpiration?: string;
   paymentMethod?: string;
   paymentCondition?: string;
+  /** QR imagen base64 o URL para cobro Mercado Pago */
+  mpPaymentQr?: string;
+  /** Link Checkout Pro para cobro Mercado Pago */
+  mpCheckoutUrl?: string;
+  mpPendingAmount?: number;
   cashReceived?: number;
   change?: number;
   observations?: string;
@@ -672,6 +677,27 @@ export function PrintDocument({ company, customer, document: doc, onClose }: Pri
                 <div style={{ fontWeight: '700', color: '#1e293b', marginBottom: '2px' }}>Comprobante Autorizado</div>
                 <div>CAE Nº: <span style={{ fontWeight: '700' }}>{doc.cae}</span></div>
                 <div>Fecha Vto. CAE: <span style={{ fontWeight: '700' }}>{doc.caeExpiration ? formatDate(doc.caeExpiration) : '-'}</span></div>
+              </div>
+            )}
+            {(doc.mpPaymentQr || doc.mpCheckoutUrl) && (
+              <div style={{ marginLeft: '12px', textAlign: 'center' }}>
+                {doc.mpPaymentQr && (
+                  <div style={{ width: '90px', height: '90px', border: '1px solid #bae6fd', borderRadius: '4px', overflow: 'hidden', margin: '0 auto 4px' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={doc.mpPaymentQr.startsWith('data:') ? doc.mpPaymentQr : `data:image/png;base64,${doc.mpPaymentQr}`}
+                      alt="QR pago MP"
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </div>
+                )}
+                <div style={{ fontSize: '6.5pt', color: '#0369a1', fontWeight: '700' }}>Pago Mercado Pago</div>
+                {doc.mpPendingAmount != null && (
+                  <div style={{ fontSize: '6.5pt', color: '#64748b' }}>Saldo: ${doc.mpPendingAmount.toLocaleString('es-AR')}</div>
+                )}
+                {doc.mpCheckoutUrl && !doc.mpPaymentQr && (
+                  <div style={{ fontSize: '6pt', color: '#64748b', maxWidth: '120px', wordBreak: 'break-all' }}>{doc.mpCheckoutUrl}</div>
+                )}
               </div>
             )}
           </div>

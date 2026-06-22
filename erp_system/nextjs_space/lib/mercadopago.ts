@@ -7,6 +7,7 @@ import {
   type MPIntegrationMetadata,
   isQRConfigured,
 } from '@/lib/mercadopago/metadata';
+import { parseMpExternalReference } from '@/lib/mp-reference';
 
 export { parseMPMetadata, serializeMPMetadata, isQRConfigured, type MPIntegrationMetadata };
 
@@ -307,11 +308,18 @@ export async function syncMpTransactionFromPayment(
   const paymentId = payment.id?.toString();
   if (!paymentId) return null;
 
+  const parsedRef = parseMpExternalReference(payment.external_reference);
+  const invoiceId = parsedRef?.type === 'invoice' ? parsedRef.id : undefined;
+  const saleId =
+    parsedRef?.type === 'sale' ? parsedRef.id : payment.external_reference || undefined;
+
   let transaction = await prisma.paymentTransaction.findFirst({
     where: {
       OR: [
         { externalId: paymentId },
         ...(payment.preference_id ? [{ preferenceId: payment.preference_id }] : []),
+        ...(invoiceId ? [{ invoiceId }] : []),
+        ...(saleId ? [{ saleId }] : []),
       ],
     },
   });
@@ -338,30 +346,82 @@ export async function syncMpTransactionFromPayment(
     updatedAt: new Date(),
   };
 
+  const metadataPayload = {
+    companyId: companyId || transaction?.companyId,
+    external_reference: payment.external_reference,
+    invoiceId,
+    saleId,
+  };
+
   if (transaction) {
     transaction = await prisma.paymentTransaction.update({
       where: { id: transaction.id },
       data: {
         ...txData,
         companyId: transaction.companyId || companyId,
-        saleId: transaction.saleId || payment.external_reference || undefined,
+        saleId: transaction.saleId || saleId,
+        invoiceId: transaction.invoiceId || invoiceId,
+        metadata: JSON.stringify(metadataPayload),
       },
     });
   } else {
     transaction = await prisma.paymentTransaction.create({
       data: {
         provider: 'mercadopago',
-        saleId: payment.external_reference || undefined,
+        saleId,
+        invoiceId,
         companyId,
-        metadata: companyId
-          ? JSON.stringify({ companyId, external_reference: payment.external_reference })
-          : JSON.stringify({ external_reference: payment.external_reference }),
+        metadata: JSON.stringify(metadataPayload),
         ...txData,
       },
     });
   }
 
   return transaction;
+}
+
+export function getMpWebhookUrl(): string | undefined {
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
+  const isPublicHttps = baseUrl.startsWith('https://') && !baseUrl.includes('localhost');
+  return isPublicHttps ? `${baseUrl}/api/payments/mercadopago/webhook` : undefined;
+}
+
+export async function createMPDirectPayment(
+  data: {
+    token: string;
+    transaction_amount: number;
+    description: string;
+    external_reference: string;
+    installments?: number;
+    payment_method_id?: string;
+    issuer_id?: string | number;
+    payer: {
+      email: string;
+      identification?: { type: string; number: string };
+    };
+  },
+  companyId?: string
+): Promise<any> {
+  const notificationUrl = getMpWebhookUrl();
+  return mpFetch('/v1/payments', companyId, {
+    method: 'POST',
+    idempotencyKey: randomUUID(),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transaction_amount: data.transaction_amount,
+      token: data.token,
+      description: data.description.slice(0, 200),
+      installments: data.installments || 1,
+      payment_method_id: data.payment_method_id,
+      issuer_id: data.issuer_id,
+      payer: {
+        email: data.payer.email,
+        identification: data.payer.identification,
+      },
+      external_reference: data.external_reference,
+      ...(notificationUrl ? { notification_url: notificationUrl } : {}),
+    }),
+  });
 }
 
 export function splitPayerName(fullName?: string): { name?: string; surname?: string } {

@@ -46,24 +46,25 @@ export function buildErpNavSections(userRole: string): ErpNavSection[] {
       label: 'Inicio',
       items: [
         { name: 'Panel', href: '/dashboard', icon: LayoutDashboard },
-        { name: 'Punto de Venta', href: '/pos', icon: ShoppingCart },
+        { name: 'Punto de Venta (POS)', href: '/pos', icon: ShoppingCart },
+        { name: 'Mi Perfil', href: '/configuracion/perfil', icon: UserCog },
       ],
     },
     {
       label: 'Facturación',
       items: [
         { name: 'Emitir Comprobante', href: '/facturacion/emitir', icon: FileSpreadsheet },
-        { name: 'Comprobantes', href: '/facturas', icon: Receipt },
-        { name: 'Tickets', href: '/tickets', icon: Printer },
-        { name: 'Remitos', href: '/facturacion/remito', icon: Truck },
+        { name: 'Comprobantes emitidos', href: '/facturas', icon: Receipt },
+        { name: 'Recibos de cobranza', href: '/recibos', icon: Wallet },
+        { name: 'Presupuestos', href: '/presupuestos', icon: FileCheck },
+        { name: 'Tickets (historial)', href: '/tickets', icon: Printer },
         { name: 'Recurrentes', href: '/facturacion/recurrentes', icon: RefreshCw },
       ],
     },
     {
       label: 'Ventas',
       items: [
-        { name: 'Historial', href: '/ventas', icon: FileText },
-        { name: 'Presupuestos', href: '/presupuestos', icon: FileCheck },
+        { name: 'Historial de ventas', href: '/ventas', icon: FileText },
       ],
     },
     {
@@ -129,8 +130,10 @@ export function buildErpNavSections(userRole: string): ErpNavSection[] {
             { name: 'Empresa', href: '/configuracion', icon: Building2 },
             { name: 'Organización', href: '/configuracion/organizacion', icon: MapPin },
             { name: 'Integraciones', href: '/configuracion/integraciones', icon: Plug },
+            { name: 'Plan EMITIA', href: '/configuracion/plan', icon: Crown },
             { name: 'ARCA/AFIP', href: '/configuracion/afip', icon: Shield },
             { name: 'Puntos de Venta', href: '/configuracion/puntos-venta', icon: ShoppingCart },
+            { name: 'Mi Perfil', href: '/configuracion/perfil', icon: UserCog },
           ],
         },
       ],

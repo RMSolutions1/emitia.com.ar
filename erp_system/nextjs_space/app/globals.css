@@ -468,7 +468,7 @@ button, a, input, select, textarea {
 
 /* Module navigation (replaces sidebar) */
 .erp-module-nav {
-  @apply bg-[#e4ecf5] border-b border-[#b8c9dc];
+  @apply bg-[#e4ecf5] border-b border-[#b8c9dc] relative z-40;
 }
 .erp-module-tab {
   @apply flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#1a3a5c] whitespace-nowrap hover:bg-white/70 border border-transparent;
@@ -477,7 +477,7 @@ button, a, input, select, textarea {
   @apply bg-white border-[#9bb3cc] text-[#1e4d8c];
 }
 .erp-module-dropdown {
-  @apply absolute left-0 top-full mt-0.5 min-w-[200px] bg-white border border-[#b8c9dc] shadow-md z-50 py-1;
+  @apply absolute left-0 top-full mt-0.5 min-w-[220px] max-h-[70vh] overflow-y-auto bg-white border border-[#b8c9dc] shadow-lg z-[100] py-1;
 }
 .erp-titlebar-btn {
   @apply p-1.5 text-white/90 hover:bg-white/10 hover:text-white border border-transparent hover:border-white/20;

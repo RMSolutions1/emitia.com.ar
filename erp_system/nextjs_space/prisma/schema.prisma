@@ -489,6 +489,7 @@ model PaymentTransaction {
   companyId         String?
   company           Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   saleId            String?
+  invoiceId         String?
   provider          String   // mercadopago, stripe, paypal, cash
   externalId        String?  // ID del proveedor
   preferenceId      String?  // ID de preferencia (MP)
@@ -511,6 +512,7 @@ model PaymentTransaction {
   updatedAt         DateTime @updatedAt
 
   @@index([saleId])
+  @@index([invoiceId])
   @@index([companyId])
   @@index([provider])
   @@index([status])

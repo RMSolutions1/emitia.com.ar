@@ -1,0 +1,56 @@
+# Emitia ERP — stack local de desarrollo
+# Uso: docker compose -f docker-compose.dev.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: emitia-postgres
+    environment:
+      POSTGRES_USER: emitia
+      POSTGRES_PASSWORD: emitia_dev
+      POSTGRES_DB: emitia
+    ports:
+      - "5432:5432"
+    volumes:
+      - emitia_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emitia"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: emitia-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - emitia_redis_data:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: emitia-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: emitia
+      RABBITMQ_DEFAULT_PASS: emitia_dev
+
+  minio:
+    image: minio/minio:latest
+    container_name: emitia-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: emitia
+      MINIO_ROOT_PASSWORD: emitia_dev_secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - emitia_minio_data:/data
+
+volumes:
+  emitia_pg_data:
+  emitia_redis_data:
+  emitia_minio_data:

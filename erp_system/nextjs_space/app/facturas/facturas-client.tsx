@@ -136,7 +136,7 @@ function canCreateNCND(invoice: Invoice): boolean {
 export function FacturasClient() {
   const router = useRouter();
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || 'ADMIN';
+  const userRole = session?.user?.role || 'ADMIN';
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -157,6 +157,14 @@ export function FacturasClient() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailInvoice, setEmailInvoice] = useState<Invoice | null>(null);
 
+  // ── Pago parcial / abono inline ──
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payInvoice, setPayInvoice] = useState<Invoice | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('cash');
+  const [payRef, setPayRef] = useState('');
+  const [payLoading, setPayLoading] = useState(false);
+
   useEffect(() => {
     fetchInvoices();
     fetchBusinessConfig();
@@ -172,6 +180,46 @@ export function FacturasClient() {
     } catch (e) {
       console.error('Error loading business config:', e);
     }
+  };
+
+  const handleRegisterPayment = async () => {
+    if (!payInvoice) return;
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0) { toast.error('Ingrese un monto válido'); return; }
+    const balance = payInvoice.total - (payInvoice.paidAmount || 0);
+    if (amt > balance + 0.01) { toast.error(`El monto supera el saldo pendiente ($${balance.toFixed(2)})`); return; }
+    setPayLoading(true);
+    try {
+      const res = await fetch(`/api/invoices/${payInvoice.id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amt, paymentMethod: payMethod, reference: payRef || undefined, createReceipt: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Abono de ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amt)} registrado. Recibo: ${data.receiptNumber || 'generado'}`);
+        setShowPayModal(false);
+        setPayInvoice(null);
+        setPayAmount('');
+        setPayRef('');
+        fetchInvoices();
+      } else {
+        toast.error(data.error || 'Error al registrar el pago');
+      }
+    } catch (e) {
+      toast.error('Error de conexión al registrar pago');
+    } finally {
+      setPayLoading(false);
+    }
+  };
+
+  const openPayModal = (inv: Invoice) => {
+    setPayInvoice(inv);
+    const balance = inv.total - (inv.paidAmount || 0);
+    setPayAmount(balance.toFixed(2));
+    setPayMethod('cash');
+    setPayRef('');
+    setShowPayModal(true);
   };
 
   const fetchAfipStatus = async () => {
@@ -481,15 +529,27 @@ export function FacturasClient() {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      emitida: 'bg-green-100 text-green-700', anulada: 'bg-red-100 text-red-700', pendiente: 'bg-yellow-100 text-yellow-700'
+      emitida: 'bg-green-100 text-green-700',
+      anulada: 'bg-red-100 text-red-700',
+      pendiente: 'bg-yellow-100 text-yellow-700',
+      partial: 'bg-amber-100 text-amber-800 border border-amber-300',
+      paid: 'bg-emerald-100 text-emerald-800',
     };
     const icons: Record<string, React.ReactNode> = {
-      emitida: <CheckCircle className="h-4 w-4" />, anulada: <XCircle className="h-4 w-4" />, pendiente: <Clock className="h-4 w-4" />
+      emitida: <CheckCircle className="h-3.5 w-3.5" />,
+      anulada: <XCircle className="h-3.5 w-3.5" />,
+      pendiente: <Clock className="h-3.5 w-3.5" />,
+      partial: <Clock className="h-3.5 w-3.5" />,
+      paid: <CheckCircle className="h-3.5 w-3.5" />,
+    };
+    const labels: Record<string, string> = {
+      emitida: 'Emitida', anulada: 'Anulada', pendiente: 'Pendiente',
+      partial: 'Cta. Cte.', paid: 'Pagado',
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${styles[status] || 'bg-slate-100 text-slate-700'}`}>
+      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${styles[status] || 'bg-slate-100 text-slate-700'}`}>
         {icons[status]}
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {labels[status] || status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
   };
@@ -626,95 +686,119 @@ export function FacturasClient() {
     <ErpPageShell {...shellProps}>
     <div className="space-y-2">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <ErpKpiBox label="Comprobantes" value={invoices.length} accent="primary" />
-        <ErpKpiBox label="Emitidas" value={invoices.filter(i => i.status === 'emitida').length} accent="success" />
-        <ErpKpiBox label="Pendientes" value={invoices.filter(i => i.status === 'pendiente').length} accent="warning" />
+        <ErpKpiBox label="Comprobantes" value={invoices.length} accent="primary"
+          icon={<FileText className="w-full h-full" />} color="#2563ad" />
+        <ErpKpiBox label="Emitidas" value={invoices.filter(i => i.status === 'emitida').length} accent="success"
+          icon={<CheckCircle className="w-full h-full" />} color="#16a34a" />
+        <ErpKpiBox label="Pendientes" value={invoices.filter(i => i.status === 'pendiente').length} accent="warning"
+          icon={<Clock className="w-full h-full" />} color="#d97706" />
         <ErpKpiBox
           label="Total facturado"
           value={'$' + invoices.filter(i => i.status === 'emitida').reduce((s, i) => s + i.total, 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+          icon={<CreditCard className="w-full h-full" />} color="#7c3aed"
         />
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                id="facturas-search"
-                type="text" placeholder="Buscar por número, cliente o documento..."
-                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                className="premium-input pl-10"
-              />
-            </div>
+      <div className="erp-panel mb-2">
+        <div className="erp-panel-header">Filtros</div>
+        <div className="p-2 flex flex-wrap gap-2">
+          <div className="flex-1 min-w-[200px] relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9baac8]" />
+            <input
+              id="facturas-search"
+              type="text" placeholder="Buscar por número, cliente o documento..."
+              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              className="erp-input w-full pl-7"
+            />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            className="premium-select w-auto min-w-[130px]">
-            <option value="">Todos</option>
+            className="erp-input w-auto min-w-[130px]">
+            <option value="">Todos los estados</option>
             <option value="emitida">Emitidas</option>
             <option value="pendiente">Pendientes</option>
+            <option value="partial">Con saldo</option>
+            <option value="paid">Saldadas</option>
             <option value="anulada">Anuladas</option>
           </select>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="premium-input w-auto" />
-            <span className="text-slate-300 text-sm">a</span>
+              className="erp-input w-auto" />
+            <span className="text-[#9baac8] text-xs px-1">a</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="premium-input w-auto" />
+              className="erp-input w-auto" />
           </div>
-          <button onClick={fetchInvoices} className="btn-secondary text-sm">
-            <RefreshCw className="h-4 w-4" /> Actualizar
+          <button onClick={fetchInvoices} className="erp-btn-secondary flex items-center gap-1">
+            <RefreshCw className="h-3.5 w-3.5" /> Actualizar
           </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 overflow-hidden">
+      <div className="erp-panel overflow-hidden">
+        <div className="erp-panel-header">
+          <span>Comprobantes emitidos</span>
+          <span className="text-[10px] font-normal opacity-70">{filteredInvoices.length} registro(s)</span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full premium-table">
-            <thead>
+          <table className="erp-grid-table w-full">
+            <thead className="sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-left">Número</th>
-                <th className="px-4 py-3 text-left hidden md:table-cell">Tipo</th>
-                <th className="px-4 py-3 text-left">Cliente</th>
-                <th className="px-4 py-3 text-left hidden sm:table-cell">Fecha</th>
-                <th className="px-4 py-3 text-right">Total</th>
-                <th className="px-4 py-3 text-center hidden lg:table-cell">Estado</th>
-                <th className="px-4 py-3 text-left hidden lg:table-cell">CAE</th>
-                <th className="px-4 py-3 text-center">Acciones</th>
+                <th>Número</th>
+                <th className="hidden md:table-cell">Tipo</th>
+                <th>Cliente</th>
+                <th className="hidden sm:table-cell">Fecha</th>
+                <th className="text-right">Total</th>
+                <th className="text-center hidden lg:table-cell">Estado</th>
+                <th className="hidden lg:table-cell">CAE</th>
+                <th className="text-center">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
-                    <FileText className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                    <p>No se encontraron comprobantes</p>
+                  <td colSpan={8} className="py-14 text-center text-[#5c7291]">
+                    <FileText className="h-10 w-10 mx-auto mb-3 text-[#b8c4dc]" />
+                    <p className="font-semibold text-[#1a3a5c]">No se encontraron comprobantes</p>
+                    <p className="text-xs mt-1 text-[#9baac8]">Emitá tu primera factura desde "Emitir Comprobante"</p>
                   </td>
                 </tr>
               ) : (
                 filteredInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
-                      <span className="font-mono font-medium text-sm">{invoice.invoiceNumber}</span>
-                      <span className="md:hidden text-xs block text-slate-500">{getDocumentName(invoice)}</span>
+                  <tr key={invoice.id} className="cursor-pointer" onClick={() => viewInvoice(invoice)}>
+                    <td>
+                      <span className="font-mono font-bold text-[11px] text-[#2563ad]">{invoice.invoiceNumber}</span>
+                      <span className="md:hidden text-[9px] block text-[#5c7291]">{getDocumentName(invoice)}</span>
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <div className="flex items-center gap-2">
+                    <td className="hidden md:table-cell">
+                      <div className="flex items-center gap-1.5">
                         {getInvoiceTypeBadge(invoice)}
-                        <span className="text-sm text-slate-600">{getDocumentName(invoice)}</span>
+                        <span className="text-[10px] text-[#5c7291]">{getDocumentName(invoice)}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <div>
-                        <p className="font-medium text-sm">{invoice.customerName}</p>
-                        {invoice.customerDocument && <p className="text-xs text-slate-500 hidden sm:block">{invoice.customerDocument}</p>}
+                        <p className="font-semibold text-[11px]">{invoice.customerName}</p>
+                        {invoice.customerDocument && <p className="text-[9px] text-[#9baac8] hidden sm:block">{invoice.customerDocument}</p>}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-600 hidden sm:table-cell">{formatDate(invoice.createdAt)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-sm">{formatCurrency(invoice.total)}</td>
-                    <td className="px-4 py-3 hidden lg:table-cell"><div className="flex justify-center">{getStatusBadge(invoice.status)}</div></td>
+                    <td className="text-[11px] text-[#5c7291] hidden sm:table-cell">{formatDate(invoice.createdAt)}</td>
+                    <td className="text-right pr-2">
+                      <span className="font-black font-mono text-[12px] text-[#1a3a5c]">{formatCurrency(invoice.total)}</span>
+                      {(invoice.paidAmount || 0) > 0 && invoice.paidAmount! < invoice.total && (
+                        <div className="text-[9px] text-amber-600 font-bold">
+                          Saldo: {formatCurrency(invoice.total - invoice.paidAmount!)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="text-center hidden lg:table-cell">
+                      <div className="flex flex-col items-center gap-0.5">
+                        {getStatusBadge(invoice.status)}
+                        {invoice.status === 'partial' && (
+                          <span className="text-[9px] text-amber-600 font-bold">CC / PARCIAL</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
                       {invoice.cae ? <span className="font-mono text-xs text-green-600">{invoice.cae}</span> : <span className="text-sm text-slate-400">-</span>}
                     </td>
@@ -729,6 +813,16 @@ export function FacturasClient() {
                         <button onClick={() => openEmailModal(invoice)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Enviar por email">
                           <Mail className="h-4 w-4" />
                         </button>
+                        {/* Botón registrar pago/abono */}
+                        {(invoice.total - (invoice.paidAmount || 0)) > 0.01 && invoice.status !== 'anulada' && (
+                          <button
+                            onClick={() => openPayModal(invoice)}
+                            className="p-2 text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                            title="Registrar abono / pago parcial"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                        )}
                         {(invoice.total - (invoice.paidAmount || 0)) > 0 && invoice.status !== 'anulada' && (
                           <button
                             onClick={() => { setMpInvoice(invoice); setShowMpModal(true); }}
@@ -1158,6 +1252,115 @@ export function FacturasClient() {
           />
         );
       })()}
+
+      {/* ── Modal: Registrar Abono / Pago Parcial ── */}
+      {showPayModal && payInvoice && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-[#9bb3cc] shadow-2xl w-full max-w-md">
+            <div className="bg-[#1e4d8c] text-white px-4 py-2.5 flex items-center justify-between">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Registrar Abono / Pago
+              </span>
+              <button onClick={() => { setShowPayModal(false); setPayInvoice(null); }} className="text-white/70 hover:text-white text-lg">×</button>
+            </div>
+            <div className="p-4 space-y-3">
+              {/* Resumen de la factura */}
+              <div className="bg-[#f4f6fc] border border-[#dde3f4] p-3">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-[#5c7291]">Comprobante</span>
+                  <span className="font-mono font-bold text-[#1a3a5c]">{payInvoice.invoiceNumber}</span>
+                </div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-[#5c7291]">Cliente</span>
+                  <span className="font-medium text-[#1a3a5c]">{payInvoice.customerName}</span>
+                </div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-[#5c7291]">Total factura</span>
+                  <span className="font-mono font-bold">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(payInvoice.total)}</span>
+                </div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-[#5c7291]">Ya abonado</span>
+                  <span className="font-mono text-green-700">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(payInvoice.paidAmount || 0)}</span>
+                </div>
+                <div className="flex justify-between text-xs border-t border-[#dde3f4] pt-1 mt-1">
+                  <span className="font-bold text-[#4a5a8c]">Saldo pendiente</span>
+                  <span className="font-mono font-black text-red-600">
+                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(payInvoice.total - (payInvoice.paidAmount || 0))}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-[#4a5a8c] uppercase mb-0.5">Monto a cobrar *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={payInvoice.total - (payInvoice.paidAmount || 0)}
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                  className="erp-input w-full font-mono font-bold text-sm"
+                  autoFocus
+                />
+                {parseFloat(payAmount || '0') > 0 && parseFloat(payAmount || '0') < (payInvoice.total - (payInvoice.paidAmount || 0)) - 0.01 && (
+                  <p className="text-[10px] text-amber-700 mt-0.5">
+                    Pago parcial — saldo restante: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(
+                      payInvoice.total - (payInvoice.paidAmount || 0) - parseFloat(payAmount || '0')
+                    )}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#4a5a8c] uppercase mb-0.5">Forma de pago</label>
+                  <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="erp-input w-full">
+                    <option value="cash">Efectivo</option>
+                    <option value="transfer">Transferencia</option>
+                    <option value="card">Tarjeta</option>
+                    <option value="check">Cheque</option>
+                    <option value="mp">Mercado Pago</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-[#4a5a8c] uppercase mb-0.5">Referencia</label>
+                  <input
+                    type="text"
+                    value={payRef}
+                    onChange={(e) => setPayRef(e.target.value)}
+                    placeholder="Nro transferencia, cheque…"
+                    className="erp-input w-full"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[10px] text-[#5c7291] bg-blue-50 border border-blue-100 px-2 py-1.5">
+                Se generará un recibo automáticamente y se actualizará el estado de la factura.
+                Si el cliente tiene cuenta corriente, el movimiento quedará registrado.
+              </p>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setShowPayModal(false); setPayInvoice(null); }}
+                  disabled={payLoading}
+                  className="erp-btn-secondary flex-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleRegisterPayment}
+                  disabled={payLoading || !payAmount || parseFloat(payAmount) <= 0}
+                  className="erp-btn-primary flex-1 flex items-center justify-center gap-1.5"
+                >
+                  {payLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Procesando…</> : <><CheckCircle className="w-3.5 h-3.5" /> Registrar Cobro</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
     </ErpPageShell>
   );

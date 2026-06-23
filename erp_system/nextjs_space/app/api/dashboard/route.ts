@@ -87,7 +87,6 @@ export async function GET(req: NextRequest) {
       topProductsSales,
       totalInvoicesMonth,
       topClientsSales,
-      caeExpiringSoon,
       unpaidInvoices,
     ] = await Promise.all([
       prisma.sale.findMany({
@@ -112,7 +111,10 @@ export async function GET(req: NextRequest) {
       prisma.supplier.count({ where: companyFilter }),
       // Cuentas por cobrar
       prisma.customerAccount.findMany({
-        where: { balance: { gt: 0 } },
+        where: {
+          balance: { gt: 0 },
+          ...(userRole !== 'superadmin' ? { customer: { companyId } } : {}),
+        },
         select: { balance: true },
       }),
       // Ventas últimos 30 días (para gráfico mensual)
@@ -141,18 +143,6 @@ export async function GET(req: NextRequest) {
         _sum: { total: true },
         _count: { id: true },
         orderBy: { _sum: { total: 'desc' } },
-        take: 5,
-      }),
-      // Facturas con CAE próximo a vencer (7 días)
-      prisma.invoice.findMany({
-        where: {
-          ...companyFilter,
-          cae: { not: null },
-          caeExpiration: { gte: now, lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
-          status: { not: 'anulada' },
-        },
-        select: { id: true, invoiceNumber: true, customerName: true, total: true, caeExpiration: true },
-        orderBy: { caeExpiration: 'asc' },
         take: 5,
       }),
       // Facturas impagas / pendientes de cobro
@@ -281,15 +271,6 @@ export async function GET(req: NextRequest) {
       count: c._count?.id || 0,
     }));
 
-    // CAE alerts
-    const caeAlerts = caeExpiringSoon.map((inv: any) => ({
-      id: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      customerName: inv.customerName,
-      total: inv.total,
-      caeExpiration: inv.caeExpiration?.toISOString(),
-    }));
-
     // Unpaid invoices
     const unpaidInvoicesList = unpaidInvoices.map((inv: any) => ({
       id: inv.id,
@@ -335,7 +316,6 @@ export async function GET(req: NextRequest) {
       recentSales: recentSalesFormatted,
       lowStockList,
       topClients,
-      caeAlerts,
       unpaidInvoicesList,
     });
   } catch (error) {

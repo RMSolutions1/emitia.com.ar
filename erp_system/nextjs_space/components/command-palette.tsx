@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
-  Search, X, LayoutDashboard, ShoppingCart, FileText, Package, Users,
+  Search, LayoutDashboard, ShoppingCart, FileText, Package, Users,
   Building2, BarChart3, Settings, Receipt, Wallet, Truck, Landmark,
   FileCheck, RefreshCw, CreditCard, Shield, Plug, Printer, FileSpreadsheet,
-  Tags, UserCheck, Sparkles, ArrowRight, Clock, Hash
+  Tags, UserCheck, Sparkles, ArrowRight
 } from 'lucide-react';
 
 interface SearchResult {
@@ -19,6 +20,8 @@ interface SearchResult {
   badge?: string;
   badgeColor?: string;
 }
+
+const TYPE_ORDER = ['page', 'invoice', 'customer', 'product'];
 
 const PAGES: SearchResult[] = [
   { id: 'dashboard', type: 'page', title: 'Dashboard', subtitle: 'Panel principal', icon: LayoutDashboard, href: '/dashboard' },
@@ -82,6 +85,8 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
   const resultsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const debounceRef = useRef<NodeJS.Timeout>();
+  const { data: session } = useSession();
+  const companyName = (session?.user as any)?.companyName || null;
 
   // Keyboard shortcut to open
   useEffect(() => {
@@ -131,9 +136,10 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
     if (q.length >= 2) {
       setLoading(true);
       try {
-        const [customersRes, productsRes] = await Promise.all([
+        const [customersRes, productsRes, invoicesRes] = await Promise.all([
           fetch(`/api/customers?search=${encodeURIComponent(q)}`).catch(() => null),
           fetch(`/api/products?search=${encodeURIComponent(q)}`).catch(() => null),
+          fetch(`/api/invoices?search=${encodeURIComponent(q)}`).catch(() => null),
         ]);
 
         const apiResults: SearchResult[] = [...pageResults];
@@ -146,10 +152,11 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
               id: `customer-${c.id}`,
               type: 'customer',
               title: c.name,
-              subtitle: c.documentNumber ? `CUIT: ${c.documentNumber}` : c.email || '',
+              subtitle: c.document ? `CUIT/DNI: ${c.document}` : c.email || 'Sin documento',
               icon: Users,
               href: '/clientes',
-              badge: c.taxCondition === 'RI' ? 'Resp. Inscripto' : c.taxCondition || undefined,
+              badge: c.taxCondition === 'responsable_inscripto' ? 'R. Inscripto' :
+                     c.taxCondition === 'monotributista' ? 'Monotrib.' : undefined,
               badgeColor: 'blue',
             });
           });
@@ -163,11 +170,36 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
               id: `product-${p.id}`,
               type: 'product',
               title: p.name,
-              subtitle: `SKU: ${p.sku} · Stock: ${p.stock}`,
+              subtitle: `${p.sku ? 'SKU: ' + p.sku + ' · ' : ''}Stock: ${p.stock ?? '—'} ${p.unit || ''}`,
               icon: Package,
               href: '/inventario',
-              badge: p.stock <= 0 ? 'Sin stock' : p.stock <= (p.minStock || 10) ? 'Stock bajo' : undefined,
+              badge: p.stock <= 0 ? 'Sin stock' : p.stock <= (p.minStock || 5) ? 'Stock bajo' : undefined,
               badgeColor: p.stock <= 0 ? 'red' : 'amber',
+            });
+          });
+        }
+
+        if (invoicesRes?.ok) {
+          const invoicesData = await invoicesRes.json();
+          const invoices = (invoicesData.invoices || invoicesData || [])
+            .filter((inv: any) => {
+              const qs = q.toLowerCase();
+              return (inv.invoiceNumber || '').toLowerCase().includes(qs) ||
+                     (inv.customerName || '').toLowerCase().includes(qs) ||
+                     (inv.customerDocument || '').includes(q);
+            })
+            .slice(0, 5);
+          invoices.forEach((inv: any) => {
+            const balance = inv.total - (inv.paidAmount || 0);
+            apiResults.push({
+              id: `invoice-${inv.id}`,
+              type: 'invoice',
+              title: `${inv.invoiceNumber} — ${inv.customerName}`,
+              subtitle: `$${(inv.total || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}${balance > 0.01 ? ` · Saldo: $${balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ' · Pagado'}`,
+              icon: Receipt,
+              href: '/facturas',
+              badge: inv.status === 'paid' ? 'Pagado' : inv.status === 'partial' ? 'Cta.Cte.' : inv.status === 'anulada' ? 'Anulada' : undefined,
+              badgeColor: inv.status === 'paid' ? 'green' : inv.status === 'partial' ? 'amber' : 'red',
             });
           });
         }
@@ -218,10 +250,10 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
     router.push(result.href);
   };
 
-  // Group results by type
-  const grouped = results.reduce((acc, r) => {
-    if (!acc[r.type]) acc[r.type] = [];
-    acc[r.type].push(r);
+  // Group results by type, ordered: pages → invoices → customers → products
+  const grouped = TYPE_ORDER.reduce((acc, type) => {
+    const items = results.filter(r => r.type === type);
+    if (items.length > 0) acc[type] = items;
     return acc;
   }, {} as Record<string, SearchResult[]>);
 
@@ -238,56 +270,68 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
       />
 
       {/* Modal */}
-      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl mx-auto px-4">
-        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="fixed top-[12%] left-1/2 -translate-x-1/2 w-full max-w-2xl mx-auto px-4">
+        <div className="bg-white shadow-2xl border border-[#9bb3cc] overflow-hidden" style={{ boxShadow: '0 8px 32px rgba(26,58,92,0.25)' }}>
+          {/* Header del panel de búsqueda — estilo ERP */}
+          <div className="bg-[#1e4d8c] text-white px-4 py-2 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider">Búsqueda Global</span>
+            <span className="text-[10px] opacity-60">{companyName || 'ERP'}</span>
+          </div>
           {/* Search Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
-            <Search className="w-5 h-5 text-slate-400 flex-shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#b8c9dc] bg-[#f4f6fc]">
+            <Search className="w-4 h-4 text-[#5c7291] flex-shrink-0" />
             <input
               ref={inputRef}
               type="text"
-              placeholder="Buscar páginas, clientes, productos..."
+              placeholder="Buscar clientes, facturas, productos, páginas…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="flex-1 text-base text-slate-900 placeholder-gray-400 outline-none bg-transparent"
+              className="flex-1 text-sm text-[#1a3a5c] placeholder-[#9baac8] outline-none bg-transparent font-medium"
               autoComplete="off"
             />
             {loading && (
-              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-[#2563ad] border-t-transparent rounded-full animate-spin" />
             )}
-            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-xs font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">
-              ESC
-            </kbd>
           </div>
 
           {/* Results */}
           <div ref={resultsRef} className="max-h-[400px] overflow-y-auto">
             {!query.trim() && (
-              <div className="p-6 text-center">
-                <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">Escribí para buscar páginas, clientes o productos</p>
-                <div className="flex items-center justify-center gap-4 mt-4 text-xs text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border text-[10px]">↑↓</kbd>
-                    Navegar
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border text-[10px]">↵</kbd>
-                    Abrir
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border text-[10px]">ESC</kbd>
-                    Cerrar
-                  </span>
+              <div className="p-4">
+                <p className="text-[10px] font-bold uppercase text-[#5c7291] tracking-wider mb-2 px-1">Acceso rápido</p>
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    { icon: ShoppingCart, label: 'Punto de Venta', href: '/pos', color: 'text-green-700' },
+                    { icon: FileSpreadsheet, label: 'Emitir Factura', href: '/facturacion/emitir', color: 'text-blue-700' },
+                    { icon: Users, label: 'Clientes', href: '/clientes', color: 'text-indigo-700' },
+                    { icon: Package, label: 'Inventario', href: '/inventario', color: 'text-amber-700' },
+                    { icon: Receipt, label: 'Facturas', href: '/facturas', color: 'text-purple-700' },
+                    { icon: Wallet, label: 'Cuentas Corrientes', href: '/cuentas-corrientes', color: 'text-rose-700' },
+                    { icon: Truck, label: 'Proveedores', href: '/proveedores', color: 'text-teal-700' },
+                    { icon: BarChart3, label: 'Reportes', href: '/reportes', color: 'text-slate-700' },
+                  ].map(({ icon: Icon, label, href, color }) => (
+                    <button
+                      key={href}
+                      onClick={() => { setOpen(false); router.push(href); }}
+                      className="flex items-center gap-2 px-3 py-2 text-left text-xs text-[#1a3a5c] hover:bg-[#eef3f9] border border-[#dde3f4] bg-white transition-colors"
+                    >
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${color}`} />
+                      <span className="truncate">{label}</span>
+                    </button>
+                  ))}
                 </div>
+                <p className="text-[10px] text-[#9baac8] text-center mt-3">
+                  Escribí para buscar clientes, facturas, productos y más
+                </p>
               </div>
             )}
 
             {query.trim() && results.length === 0 && !loading && (
-              <div className="p-8 text-center">
-                <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">No se encontraron resultados para &ldquo;{query}&rdquo;</p>
+              <div className="py-8 text-center">
+                <Search className="w-8 h-8 text-[#b8c9dc] mx-auto mb-2" />
+                <p className="text-sm text-[#5c7291]">Sin resultados para <strong>&ldquo;{query}&rdquo;</strong></p>
+                <p className="text-xs text-[#9baac8] mt-1">Intentá con el número de factura, nombre del cliente o SKU del producto</p>
               </div>
             )}
 
@@ -295,55 +339,54 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
               const TypeIcon = TYPE_ICONS[type] || Search;
               return (
                 <div key={type}>
-                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <TypeIcon className="w-3.5 h-3.5" />
+                  <div className="px-4 py-1.5 bg-[#eef3f9] border-y border-[#dde3f4]">
+                    <p className="text-[10px] font-bold text-[#5c7291] uppercase tracking-wider flex items-center gap-1.5">
+                      <TypeIcon className="w-3 h-3" />
                       {TYPE_LABELS[type] || type}
                     </p>
                   </div>
                   {items.map((result) => {
                     const currentIndex = globalIndex++;
                     const Icon = result.icon;
+                    const isSelected = currentIndex === selectedIndex;
                     return (
                       <button
                         key={result.id}
                         data-index={currentIndex}
                         onClick={() => navigate(result)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                          currentIndex === selectedIndex
-                            ? 'bg-blue-50 border-l-2 border-blue-500'
-                            : 'hover:bg-slate-50 border-l-2 border-transparent'
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors border-l-2 ${
+                          isSelected
+                            ? 'bg-[#2563ad] text-white border-[#1e4d8c]'
+                            : 'hover:bg-[#f4f6fc] text-[#1a3a5c] border-transparent'
                         }`}
                       >
-                        <div className={`p-2 rounded-lg flex-shrink-0 ${
-                          currentIndex === selectedIndex ? 'bg-blue-100' : 'bg-slate-100'
+                        <div className={`w-7 h-7 flex items-center justify-center shrink-0 ${
+                          isSelected ? 'bg-white/20' : 'bg-[#eef3f9] border border-[#dde3f4]'
                         }`}>
-                          <Icon className={`w-4 h-4 ${
-                            currentIndex === selectedIndex ? 'text-blue-600' : 'text-slate-500'
-                          }`} />
+                          <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#5c7291]'}`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${
-                            currentIndex === selectedIndex ? 'text-blue-900' : 'text-slate-900'
-                          }`}>
+                          <p className={`text-xs font-semibold truncate ${isSelected ? 'text-white' : 'text-[#1a3a5c]'}`}>
                             {result.title}
                           </p>
                           {result.subtitle && (
-                            <p className="text-xs text-slate-500 truncate">{result.subtitle}</p>
+                            <p className={`text-[10px] truncate ${isSelected ? 'text-white/75' : 'text-[#5c7291]'}`}>
+                              {result.subtitle}
+                            </p>
                           )}
                         </div>
                         {result.badge && (
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 shrink-0 ${
+                            isSelected ? 'bg-white/25 text-white' :
                             result.badgeColor === 'red' ? 'bg-red-100 text-red-700' :
                             result.badgeColor === 'amber' ? 'bg-amber-100 text-amber-700' :
+                            result.badgeColor === 'green' ? 'bg-green-100 text-green-700' :
                             'bg-blue-100 text-blue-700'
                           }`}>
                             {result.badge}
                           </span>
                         )}
-                        <ArrowRight className={`w-4 h-4 flex-shrink-0 ${
-                          currentIndex === selectedIndex ? 'text-blue-400' : 'text-slate-300'
-                        }`} />
+                        <ArrowRight className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white/70' : 'text-[#b8c9dc]'}`} />
                       </button>
                     );
                   })}
@@ -353,11 +396,20 @@ export function CommandPalette({ externalOpen, onClose }: { externalOpen?: boole
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-xs text-slate-400">EMITIA · Búsqueda Rápida</p>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <kbd className="px-1.5 py-0.5 bg-white rounded border border-slate-200 text-[10px] font-medium">⌘K</kbd>
-              <span>para abrir</span>
+          <div className="px-4 py-2 bg-[#eef3f9] border-t border-[#b8c9dc] flex items-center justify-between">
+            <p className="text-[10px] text-[#5c7291] font-medium">
+              {companyName ? companyName : 'ERP'} · Búsqueda global
+            </p>
+            <div className="flex items-center gap-3 text-[10px] text-[#5c7291]">
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0 bg-white border border-[#b8c9dc] text-[9px] font-mono">↑↓</kbd> navegar
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0 bg-white border border-[#b8c9dc] text-[9px] font-mono">↵</kbd> abrir
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0 bg-white border border-[#b8c9dc] text-[9px] font-mono">ESC</kbd> cerrar
+              </span>
             </div>
           </div>
         </div>

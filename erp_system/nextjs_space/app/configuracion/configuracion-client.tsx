@@ -33,6 +33,7 @@ import {
 import toast from 'react-hot-toast';
 import { ErpPageShell } from '@/components/erp/erp-page-shell';
 import { useErpSession } from '@/components/erp/use-erp-session';
+import { SetupChecklist } from '@/components/setup-checklist';
 
 interface ApiConfig {
   id: string;
@@ -272,6 +273,7 @@ export function ConfiguracionClient() {
       onRefresh={fetchConfigs}
     >
     <div className="space-y-6">
+      <SetupChecklist />
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         <a href="/configuracion/puntos-venta" className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex items-center gap-3">
@@ -480,7 +482,7 @@ export function ConfiguracionClient() {
               <select
                 value={businessConfig.province || ''}
                 onChange={e => setBusinessConfig(prev => ({ ...prev, province: e.target.value }))}
-                className="w-full px-4 py-2.5 premium-input"
+                className="premium-select"
               >
                 <option value="">Seleccionar provincia...</option>
                 {PROVINCIAS_ARGENTINA.map(prov => (
@@ -554,16 +556,8 @@ export function ConfiguracionClient() {
           </div>
 
           <div className="mt-6 pt-6 border-t border-slate-200 flex justify-end">
-            <button
-              onClick={saveBusinessConfig}
-              disabled={saving}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-sm shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2 font-medium"
-            >
-              {saving ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-              ) : (
-                <Save className="h-5 w-5" />
-              )}
+            <button onClick={saveBusinessConfig} disabled={saving} className="btn-primary disabled:opacity-50">
+              {saving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Save className="h-4 w-4" />}
               Guardar Cambios
             </button>
           </div>
@@ -602,7 +596,7 @@ export function ConfiguracionClient() {
               <select
                 value={businessConfig.condicionIva || 'responsable_inscripto'}
                 onChange={e => setBusinessConfig(prev => ({ ...prev, condicionIva: e.target.value }))}
-                className="w-full px-4 py-2.5 premium-input"
+                className="premium-select"
               >
                 {CONDICIONES_IVA.map(cond => (
                   <option key={cond.value} value={cond.value}>{cond.label}</option>
@@ -646,7 +640,7 @@ export function ConfiguracionClient() {
               <select
                 value={businessConfig.taxRate}
                 onChange={e => setBusinessConfig(prev => ({ ...prev, taxRate: parseFloat(e.target.value) }))}
-                className="w-full px-4 py-2.5 premium-input"
+                className="premium-select"
               >
                 <option value={21}>21% - General</option>
                 <option value={10.5}>10.5% - Reducida</option>
@@ -660,7 +654,7 @@ export function ConfiguracionClient() {
               <select
                 value={businessConfig.currency}
                 onChange={e => setBusinessConfig(prev => ({ ...prev, currency: e.target.value }))}
-                className="w-full px-4 py-2.5 premium-input"
+                className="premium-select"
               >
                 <option value="ARS">ARS - Peso Argentino ($)</option>
                 <option value="USD">USD - Dólar Estadounidense (US$)</option>
@@ -708,16 +702,8 @@ export function ConfiguracionClient() {
           </div>
 
           <div className="mt-6 pt-6 border-t border-slate-200 flex justify-end">
-            <button
-              onClick={saveBusinessConfig}
-              disabled={saving}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-sm shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2 font-medium"
-            >
-              {saving ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-              ) : (
-                <Save className="h-5 w-5" />
-              )}
+            <button onClick={saveBusinessConfig} disabled={saving} className="btn-primary disabled:opacity-50">
+              {saving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Save className="h-4 w-4" />}
               Guardar Cambios
             </button>
           </div>
@@ -871,7 +857,7 @@ export function ConfiguracionClient() {
                         <select
                           value={providerForm.environment || 'sandbox'}
                           onChange={e => setProviderForm(prev => ({ ...prev, environment: e.target.value }))}
-                          className="w-full px-4 py-2 premium-input"
+                          className="premium-select"
                         >
                           <option value="sandbox">Sandbox (Pruebas)</option>
                           <option value="production">Producción (Real)</option>
@@ -883,51 +869,35 @@ export function ConfiguracionClient() {
                   <div className="flex items-center gap-3">
                     {isEditing ? (
                       <>
-                        <button
-                          onClick={() => saveProviderConfig(key)}
-                          disabled={saving}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-sm shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2"
-                        >
+                        <button onClick={() => saveProviderConfig(key)} disabled={saving} className="btn-primary disabled:opacity-50">
                           {saving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Save className="h-4 w-4" />}
                           Guardar
                         </button>
-                        <button
-                          onClick={() => { setEditingProvider(null); setProviderForm({}); }}
-                          className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300"
-                        >
+                        <button onClick={() => { setEditingProvider(null); setProviderForm({}); }} className="btn-secondary">
                           Cancelar
                         </button>
                       </>
                     ) : (
                       <>
                         <button
-                          onClick={() => {
-                            setEditingProvider(key);
-                            setProviderForm({ environment: config?.environment || 'sandbox' });
-                          }}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-sm shadow-blue-500/20 flex items-center gap-2"
+                          onClick={() => { setEditingProvider(key); setProviderForm({ environment: config?.environment || 'sandbox' }); }}
+                          className="btn-primary"
                         >
                           <Key className="h-4 w-4" />
                           {config ? 'Actualizar Credenciales' : 'Configurar'}
                         </button>
                         {config && (
-                          <button
-                            onClick={() => deleteProvider(key)}
-                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 flex items-center gap-2"
-                          >
+                          <button onClick={() => deleteProvider(key)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-700 bg-red-50 border border-red-100 hover:bg-red-100">
                             <Trash2 className="h-4 w-4" />
                             Eliminar
                           </button>
                         )}
-                        <a
-                          href={info.helpUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 text-blue-600 hover:underline text-sm flex items-center gap-1"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          ¿Cómo obtener credenciales?
-                        </a>
+                        {info.helpUrl !== '#' && (
+                          <a href={info.helpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-4 py-2.5 text-sm text-blue-600 hover:underline">
+                            <ExternalLink className="h-4 w-4" />
+                            ¿Cómo obtener credenciales?
+                          </a>
+                        )}
                       </>
                     )}
                   </div>

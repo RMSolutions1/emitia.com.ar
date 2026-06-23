@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, DollarSign, CreditCard, Percent, Printer, ArrowDownToLine, ExternalLink, FileText, Loader2, CheckCircle, AlertCircle, Shield, Receipt, QrCode } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, DollarSign, CreditCard, Percent, Printer, ArrowDownToLine, ExternalLink, FileText, Loader2, CheckCircle, AlertCircle, Shield, Receipt, QrCode, LayoutGrid, List, Package, Tag, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PrintDocument, DocumentData, DocumentCompany, DocumentCustomer } from '@/components/print-document';
 import { ErpPageShell } from '@/components/erp/erp-page-shell';
@@ -101,12 +101,25 @@ const PAYMENT_MAP: Record<string, string> = {
   MercadoPago: 'mercadopago',
 };
 
+// Color palette for category icons in the product grid
+const CATEGORY_COLORS: string[] = [
+  '#2563ad','#16a34a','#d97706','#9333ea','#db2777','#0891b2','#65a30d','#ea580c',
+  '#7c3aed','#059669','#dc2626','#0284c7',
+];
+function getCategoryColor(cat: string): string {
+  let hash = 0;
+  for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+  return CATEGORY_COLORS[Math.abs(hash) % CATEGORY_COLORS.length];
+}
+
 export function PosClient() {
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || 'ADMIN';
+  const userRole = session?.user?.role || 'ADMIN';
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<FullCustomer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<FullCustomer | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
@@ -373,11 +386,19 @@ export function PosClient() {
     } catch (error) { console.error('Error al cargar clientes:', error); }
   };
 
+  const categories = ['Todos', ...Array.from(new Set(products.map(p => p.category?.name || 'Sin categoría')))];
+
   const filteredProducts = products?.filter(
-    (p) =>
-      p?.name?.toLowerCase?.()?.includes?.(searchTerm?.toLowerCase?.() ?? '') ||
-      p?.sku?.toLowerCase?.()?.includes?.(searchTerm?.toLowerCase?.() ?? '') ||
-      p?.barcode?.toLowerCase?.()?.includes?.(searchTerm?.toLowerCase?.() ?? '')
+    (p) => {
+      const matchesSearch =
+        p?.name?.toLowerCase?.()?.includes?.(searchTerm?.toLowerCase?.() ?? '') ||
+        p?.sku?.toLowerCase?.()?.includes?.(searchTerm?.toLowerCase?.() ?? '') ||
+        p?.barcode?.toLowerCase?.()?.includes?.(searchTerm?.toLowerCase?.() ?? '');
+      const matchesCategory =
+        selectedCategory === 'Todos' ||
+        (p.category?.name || 'Sin categoría') === selectedCategory;
+      return matchesSearch && matchesCategory;
+    }
   ) ?? [];
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -901,166 +922,286 @@ export function PosClient() {
       ]}
     >
     <>
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 min-h-[calc(100vh-14rem)]">
-      {/* Products List */}
-      <div className="lg:col-span-2 bg-white rounded-lg shadow-md p-6 overflow-hidden flex flex-col">
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input
-              ref={searchRef}
-              type="text"
-              placeholder="Buscar por nombre, SKU o código de barras... (F2)"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="w-full pl-11 pr-4 py-3 premium-input"
-            />
-          </div>
-          <div className="flex gap-4 mt-2 text-xs text-slate-400">
-            <span>F2: Buscar</span>
-            <span>F4: Cobrar</span>
-            <span>ESC: Limpiar</span>
-          </div>
-        </div>
+    {/* ══════ POS LAYOUT — Estilo corralón ERP ══════ */}
+    <div className="flex gap-0 border border-[#b8c4dc]" style={{ height: 'calc(100vh - 10rem)', minHeight: '500px' }}>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filteredProducts?.map?.((product) => (
-              <div
-                key={product?.id}
-                onClick={() => addToCart(product)}
-                className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                  product.stock <= 0
-                    ? 'border-red-200 bg-red-50 opacity-60'
-                    : product.stock <= 5
-                    ? 'border-yellow-200 hover:border-yellow-500 hover:shadow-md'
-                    : 'border-slate-200 hover:border-blue-500 hover:shadow-md'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 text-sm">{product?.name ?? ''}</h3>
-                    <p className="text-xs text-slate-500">{product?.category?.name ?? 'Sin categoría'}</p>
-                    <p className="text-xs text-slate-400 mt-1">SKU: {product?.sku ?? ''}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-blue-600">${product?.price?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 }) ?? '0'}</p>
-                    <p className={`text-xs ${product.stock <= 5 ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
-                      Stock: {product?.stock ?? 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )) ?? []}
-          </div>
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-12 text-slate-500">No se encontraron productos</div>
-          )}
-        </div>
+      {/* ── 1. Sidebar de Categorías ── */}
+      <div className="flex flex-col shrink-0 border-r border-[#b8c4dc] bg-[#e8edf5] overflow-y-auto" style={{ width: '130px' }}>
+        <div className="bg-[#9baac8] text-white text-[10px] font-bold uppercase px-2 py-1.5 tracking-wider sticky top-0">Categorías</div>
+        {categories.map((cat) => {
+          const count = cat === 'Todos' ? products.length : products.filter(p => (p.category?.name || 'Sin categoría') === cat).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`text-left px-2 py-2 text-[11px] border-b border-[#d0d8ea] transition-colors ${
+                selectedCategory === cat
+                  ? 'bg-[#2563ad] text-white font-bold'
+                  : 'text-[#1a3a5c] hover:bg-[#dde3f4] font-medium'
+              }`}
+            >
+              <span className="block truncate">{cat}</span>
+              <span className={`text-[9px] ${selectedCategory === cat ? 'text-white/70' : 'text-[#9baac8]'}`}>{count} art.</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Cart */}
-      <div className="bg-white rounded-lg shadow-md p-6 flex flex-col">
-        <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <ShoppingCart className="w-6 h-6" />
-          Carrito
-        </h2>
+      {/* ── 2. Zona de productos ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Buscador + toggle vista */}
+        <div className="border-b border-[#b8c4dc] bg-[#f8fafc] px-2 py-1.5 flex items-center gap-2 shrink-0">
+          <Search className="w-4 h-4 text-[#9baac8] shrink-0" />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Buscar por nombre, SKU o código de barras... (F2)"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            className="flex-1 bg-transparent text-xs border-0 outline-none text-[#1a3a5c] placeholder:text-[#9baac8]"
+          />
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button type="button" onClick={() => setViewMode('table')} title="Vista lista"
+              className={`p-1 ${viewMode === 'table' ? 'bg-[#2563ad] text-white' : 'text-[#9baac8] hover:text-[#2563ad]'}`}>
+              <List className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" onClick={() => setViewMode('cards')} title="Vista cards"
+              className={`p-1 ${viewMode === 'cards' ? 'bg-[#2563ad] text-white' : 'text-[#9baac8] hover:text-[#2563ad]'}`}>
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <span className="text-[9px] text-[#9baac8] shrink-0 hidden lg:block">F2·F4·ESC</span>
+        </div>
 
-        {/* Customer Selection */}
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2">
-            <User className="w-4 h-4" />
-            Cliente
-          </label>
-          <select
-            value={selectedCustomer?.id ?? ''}
-            onChange={(e) => {
-              const customer = customers?.find?.((c) => c?.id === e.target.value);
-              setSelectedCustomer(customer ?? null);
-            }}
-            className="w-full px-3 py-2 premium-input text-sm"
-          >
-            <option value="">Consumidor Final</option>
-            {customers?.map?.((customer) => (
-              <option key={customer?.id} value={customer?.id}>
-                {customer?.name ?? ''} {customer?.document ? `(${customer.document})` : ''}
-              </option>
-            )) ?? []}
-          </select>
-
-          {/* Customer info & auto-detected document type */}
-          {generateInvoice && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${detectedDoc.color}`}>
-                {detectedDoc.label}
-              </span>
-              {selectedCustomer?.taxCondition && (
-                <span className="text-xs text-slate-500">
-                  {CONDICION_IVA_LABELS[selectedCustomer.taxCondition] || selectedCustomer.taxCondition}
-                </span>
-              )}
-              {!selectedCustomer && (
-                <span className="text-xs text-slate-400">Consumidor Final</span>
-              )}
+        {/* Grilla / Cards de productos */}
+        <div className="flex-1 overflow-y-auto">
+          {filteredProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-[#5c7291] gap-3">
+              <Package className="w-10 h-10 text-[#b8c4dc]" />
+              <div className="text-center">
+                <p className="text-sm font-semibold">{products.length === 0 ? 'Sin productos en el catálogo' : 'Sin resultados'}</p>
+                <p className="text-xs text-[#9baac8] mt-1">{products.length === 0 ? 'Agregá productos en Inventario' : 'Probá con otro término de búsqueda'}</p>
+              </div>
+            </div>
+          ) : viewMode === 'table' ? (
+            /* ── Vista tabla (ERP clásico) ── */
+            <table className="erp-grid-table w-full">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th className="w-8 text-center"></th>
+                  <th>Artículo / Descripción</th>
+                  <th className="w-20 hidden md:table-cell">Cód. / SKU</th>
+                  <th className="w-20 text-right">Precio</th>
+                  <th className="w-12 text-center">Stock</th>
+                  <th className="w-10 text-center">+</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((product) => {
+                  const catColor = getCategoryColor(product.category?.name || 'X');
+                  return (
+                    <tr
+                      key={product.id}
+                      className={`cursor-pointer ${product.stock <= 0 ? 'opacity-40' : ''}`}
+                      onClick={() => addToCart(product)}
+                    >
+                      {/* Ícono de color por categoría */}
+                      <td className="text-center px-1">
+                        <div className="w-6 h-6 mx-auto flex items-center justify-center text-white text-[10px] font-black" style={{ backgroundColor: catColor }}>
+                          {(product.name || 'P').charAt(0).toUpperCase()}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="px-1 py-0.5">
+                          <div className="font-semibold text-[11px] text-[#1a2a4c] truncate">{product.name}</div>
+                          <div className="text-[9px] text-[#9baac8] flex items-center gap-1">
+                            <span style={{ color: catColor }} className="font-semibold">{product.category?.name ?? 'General'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="hidden md:table-cell">
+                        <span className="cell-text font-mono text-[10px]">{product.sku}</span>
+                      </td>
+                      <td className="text-right pr-2 font-black font-mono text-[12px] text-[#2563ad]">
+                        ${product.price?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="text-center">
+                        <span className={`text-[11px] font-bold ${product.stock <= 0 ? 'text-red-600' : product.stock <= 5 ? 'text-amber-600' : 'text-green-700'}`}>
+                          {product.stock <= 0 ? '✕' : product.stock}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                          disabled={product.stock <= 0}
+                          className="w-6 h-6 bg-[#2563ad] text-white flex items-center justify-center mx-auto hover:bg-[#1e4d8c] font-bold text-lg leading-none disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Agregar al carrito"
+                        >+</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            /* ── Vista cards (visual) ── */
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
+              {filteredProducts.map((product) => {
+                const catColor = getCategoryColor(product.category?.name || 'X');
+                const outOfStock = product.stock <= 0;
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => !outOfStock && addToCart(product)}
+                    disabled={outOfStock}
+                    className={`border text-left transition-all group ${
+                      outOfStock
+                        ? 'border-[#e0e0e0] bg-[#f9f9f9] opacity-50 cursor-not-allowed'
+                        : 'border-[#b8c4dc] bg-white hover:border-[#2563ad] hover:shadow-md cursor-pointer'
+                    }`}
+                  >
+                    {/* Cabecera de color */}
+                    <div className="h-2 w-full" style={{ backgroundColor: catColor }} />
+                    <div className="p-2">
+                      {/* Ícono grande de categoría */}
+                      <div className="w-10 h-10 flex items-center justify-center text-white text-xl font-black mb-2 mx-auto" style={{ backgroundColor: catColor }}>
+                        {(product.name || 'P').charAt(0).toUpperCase()}
+                      </div>
+                      <p className="text-[11px] font-bold text-[#1a2a4c] text-center truncate leading-tight">{product.name}</p>
+                      <p className="text-[9px] text-center mt-0.5" style={{ color: catColor }}>{product.category?.name ?? 'General'}</p>
+                      <p className="text-center font-black font-mono text-[13px] text-[#2563ad] mt-1">
+                        ${product.price?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className={`text-[9px] font-bold px-1 ${
+                          outOfStock ? 'text-red-600 bg-red-50' :
+                          product.stock <= 5 ? 'text-amber-600 bg-amber-50' : 'text-green-700 bg-green-50'
+                        }`}>
+                          {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}
+                        </span>
+                        {!outOfStock && (
+                          <span className="w-5 h-5 bg-[#2563ad] text-white flex items-center justify-center text-lg leading-none font-bold group-hover:bg-[#1e4d8c]">
+                            +
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto mb-3 space-y-2">
-          {cart?.length === 0 ? (
-            <p className="text-slate-500 text-center py-8">Carrito vacío</p>
-          ) : (
-            cart?.map?.((item) => (
-              <div key={item?.id} className="p-3 bg-slate-50 rounded-lg">
-                <div className="flex justify-between items-start mb-1.5">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sm text-slate-900">{item?.name ?? ''}</h4>
-                    <p className="text-xs text-slate-500">${item?.price?.toLocaleString?.('es-AR') ?? '0'} c/u</p>
-                  </div>
-                  <button onClick={() => removeFromCart(item?.id ?? '')} className="text-red-500 hover:text-red-700">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updateQuantity(item?.id ?? '', -1)} className="p-1 bg-white rounded border border-slate-100/80 hover:bg-slate-100">
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="font-medium w-8 text-center">{item?.quantity ?? 0}</span>
-                    <button onClick={() => updateQuantity(item?.id ?? '', 1)} className="p-1 bg-white rounded border border-slate-100/80 hover:bg-slate-100">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <span className="font-bold text-blue-600">
-                    ${calculateItemTotal(item)?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 }) ?? '0'}
-                  </span>
-                </div>
-              </div>
-            )) ?? []
+        {/* Pie de la zona de productos */}
+        <div className="erp-grid-footer shrink-0 flex items-center justify-between">
+          <span>{filteredProducts.length} artículo(s) · <span className="text-[#2563ad] font-semibold">{selectedCategory}</span></span>
+          <span className="text-[9px] opacity-60">F2: Buscar · F4: Cobrar · ESC: Vaciar</span>
+        </div>
+      </div>
+
+      {/* ── 3. Panel de carrito + cobro ── */}
+      <div className="flex flex-col border-l border-[#b8c4dc] bg-[#f4f6fc] overflow-y-auto" style={{ width: '320px' }}>
+
+        {/* Header carrito */}
+        <div className="bg-[#9baac8] text-white text-[10px] font-bold uppercase px-3 py-1.5 tracking-wider shrink-0 flex items-center gap-2">
+          <ShoppingCart className="w-3.5 h-3.5" />
+          Carrito de Venta
+        </div>
+
+        {/* Cliente */}
+        <div className="px-2 py-1.5 border-b border-[#b8c4dc] shrink-0">
+          <div className="erp-doc-field" style={{ gridTemplateColumns: '55px 1fr' }}>
+            <label className="text-[10px] font-bold text-[#4a5a8c] text-right pr-1">Cliente</label>
+            <select
+              value={selectedCustomer?.id ?? ''}
+              onChange={(e) => {
+                const customer = customers?.find?.((c) => c?.id === e.target.value);
+                setSelectedCustomer(customer ?? null);
+              }}
+              className="erp-input text-[11px]"
+            >
+              <option value="">Consumidor Final</option>
+              {customers?.map?.((customer) => (
+                <option key={customer?.id} value={customer?.id}>
+                  {customer?.name ?? ''} {customer?.document ? `(${customer.document})` : ''}
+                </option>
+              )) ?? []}
+            </select>
+          </div>
+          {generateInvoice && (
+            <div className="mt-1 flex items-center gap-1.5 pl-14">
+              <span className="text-[10px] font-bold text-[#2563ad] border border-[#2563ad] px-1.5">{detectedDoc.letter}</span>
+              <span className="text-[9px] text-[#5c7291]">{selectedCustomer ? (CONDICION_IVA_LABELS[selectedCustomer.taxCondition ?? ''] || 'Consumidor Final') : 'Consumidor Final'}</span>
+            </div>
           )}
         </div>
 
-        {/* Global Discount */}
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2">
-            <Percent className="w-4 h-4" /> Descuento Global (%)
-          </label>
-          <div className="flex gap-2">
+        {/* Items del carrito — tabla compacta */}
+        <div className="flex-1 overflow-y-auto border-b border-[#b8c4dc]">
+          {cart.length === 0 ? (
+            <div className="flex items-center justify-center h-20 text-[11px] text-[#9baac8]">Carrito vacío</div>
+          ) : (
+            <table className="erp-grid-table w-full">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th>Artículo</th>
+                  <th className="w-20 text-center">Cant.</th>
+                  <th className="w-24 text-right">Subtotal</th>
+                  <th className="w-6"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {cart.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="px-1.5 py-0.5">
+                        <div className="text-[10px] font-semibold text-[#1a2a4c] truncate">{item.name}</div>
+                        <div className="text-[9px] text-[#9baac8]">${item.price?.toLocaleString('es-AR', { minimumFractionDigits: 2 })} c/u</div>
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <button onClick={() => updateQuantity(item.id, -1)} className="w-5 h-5 border border-[#9bb3cc] bg-white text-[#1a3a5c] flex items-center justify-center hover:bg-[#dde3f4] font-bold">−</button>
+                        <span className="w-6 text-center text-[11px] font-bold text-[#1a2a4c]">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, 1)} className="w-5 h-5 border border-[#9bb3cc] bg-white text-[#1a3a5c] flex items-center justify-center hover:bg-[#dde3f4] font-bold">+</button>
+                      </div>
+                    </td>
+                    <td className="text-right pr-2 font-mono font-bold text-[11px] text-[#2563ad]">
+                      ${calculateItemTotal(item)?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="text-center">
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 px-0.5">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Descuento global */}
+        <div className="px-2 py-1.5 border-b border-[#b8c4dc] shrink-0">
+          <div className="text-[9px] font-bold text-[#4a5a8c] uppercase mb-1">Descuento Global</div>
+          <div className="flex gap-1">
             {[0, 5, 10, 15, 20].map((d) => (
               <button key={d} onClick={() => setGlobalDiscount(d)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${globalDiscount === d ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+                className={`flex-1 py-1 text-[10px] font-bold border transition ${globalDiscount === d ? 'bg-[#2563ad] text-white border-[#2563ad]' : 'bg-white text-[#1a3a5c] border-[#9bb3cc] hover:bg-[#dde3f4]'}`}>
                 {d}%
               </button>
             ))}
           </div>
         </div>
 
-        {/* Payment Method */}
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Método de Pago</label>
-          <div className="grid grid-cols-2 gap-2">
+        {/* Método de pago */}
+        <div className="px-2 py-1.5 border-b border-[#b8c4dc] shrink-0">
+          <div className="text-[9px] font-bold text-[#4a5a8c] uppercase mb-1">Método de Pago</div>
+          <div className="grid grid-cols-2 gap-1 mb-1">
             {[
               { name: 'Efectivo', icon: DollarSign },
               { name: 'Débito', icon: CreditCard },
@@ -1068,153 +1209,114 @@ export function PosClient() {
               { name: 'Transferencia', icon: ArrowDownToLine },
             ].map(({ name, icon: Icon }) => (
               <button key={name} onClick={() => setPaymentMethod(name)}
-                className={`flex items-center justify-center gap-2 py-2 rounded-lg font-medium text-sm transition-colors ${
-                  paymentMethod === name ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
-                <Icon className="w-4 h-4" />{name}
+                className={`flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold border transition ${
+                  paymentMethod === name ? 'bg-[#2563ad] text-white border-[#2563ad]' : 'bg-white text-[#1a3a5c] border-[#9bb3cc] hover:bg-[#dde3f4]'}`}>
+                <Icon className="w-3 h-3" />{name}
               </button>
             ))}
           </div>
           {mpConfigured && (
             <button onClick={() => setPaymentMethod('MercadoPago')}
-              className={`w-full mt-2 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium text-sm transition-colors ${
-                paymentMethod === 'MercadoPago' ? 'bg-sky-500 text-white' : 'bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200'}`}>
-              <CreditCard className="w-4 h-4" />MercadoPago<ExternalLink className="w-3 h-3" />
+              className={`w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold border transition ${
+                paymentMethod === 'MercadoPago' ? 'bg-sky-600 text-white border-sky-600' : 'bg-sky-50 text-sky-700 border-sky-300 hover:bg-sky-100'}`}>
+              <CreditCard className="w-3 h-3" />MercadoPago<ExternalLink className="w-2.5 h-2.5" />
             </button>
           )}
           {mpConfigured && paymentMethod === 'MercadoPago' && (
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setMpMode('card')}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition ${
-                  mpMode === 'card' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <CreditCard className="w-3.5 h-3.5" /> Tarjeta in-app
-              </button>
-              <button
-                type="button"
-                onClick={() => setMpMode('qr')}
-                disabled={!mpQrConfigured}
-                title={!mpQrConfigured ? 'Configurá QR en Integraciones' : undefined}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition disabled:opacity-50 ${
-                  mpMode === 'qr' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <QrCode className="w-3.5 h-3.5" /> QR MP
-              </button>
-              <button
-                type="button"
-                onClick={() => setMpMode('checkout')}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition ${
-                  mpMode === 'checkout' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> Link externo
-              </button>
+            <div className="mt-1 grid grid-cols-3 gap-1">
+              {[
+                { mode: 'card' as const, icon: CreditCard, label: 'Tarjeta' },
+                { mode: 'qr' as const, icon: QrCode, label: 'QR MP', disabled: !mpQrConfigured },
+                { mode: 'checkout' as const, icon: ExternalLink, label: 'Link' },
+              ].map(({ mode, icon: Icon, label, disabled }) => (
+                <button key={mode} type="button" onClick={() => setMpMode(mode)} disabled={disabled}
+                  className={`flex items-center justify-center gap-1 py-1 text-[9px] font-bold border disabled:opacity-50 transition ${
+                    mpMode === mode ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-sky-700 border-sky-300 hover:bg-sky-50'}`}>
+                  <Icon className="w-3 h-3" />{label}
+                </button>
+              ))}
             </div>
           )}
           {mpPendingSaleId && (
-            <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                Esperando confirmación de MercadoPago…
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  cancelMpPending(mpPendingSaleId);
-                  setMpPendingSaleId(null);
-                  setMpQrImage(null);
-                  sessionStorage.removeItem('mp_pending_sale');
-                  sessionStorage.removeItem('mp_pending_snapshot');
-                  toast('Venta pendiente cancelada');
-                }}
-                className="mt-2 text-amber-900 underline hover:no-underline"
-              >
-                Cancelar venta pendiente
-              </button>
+            <div className="mt-1 px-2 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-[9px]">
+              <div className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Esperando MP…</div>
+              <button type="button" onClick={() => { cancelMpPending(mpPendingSaleId); setMpPendingSaleId(null); setMpQrImage(null); sessionStorage.removeItem('mp_pending_sale'); sessionStorage.removeItem('mp_pending_snapshot'); toast('Cancelado'); }} className="underline mt-0.5">Cancelar</button>
             </div>
           )}
         </div>
 
-        {/* Invoice + CAE Option */}
-        <div className="mb-3 p-3 rounded-lg border border-slate-100/80 bg-slate-50">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={generateInvoice} onChange={(e) => setGenerateInvoice(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
-            <Shield className="w-4 h-4 text-blue-500" />
-            <span className="text-sm font-medium text-slate-700">Factura electrónica + CAE</span>
+        {/* Factura electrónica */}
+        <div className="px-2 py-1.5 border-b border-[#b8c4dc] shrink-0">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" checked={generateInvoice} onChange={(e) => setGenerateInvoice(e.target.checked)} className="w-3 h-3" />
+            <Shield className="w-3 h-3 text-[#2563ad]" />
+            <span className="text-[10px] font-semibold text-[#1a3a5c]">Factura electrónica + CAE</span>
           </label>
           {generateInvoice && (
-            <p className="text-[11px] text-slate-500 mt-1.5 ml-6">
-              Se solicitará CAE automáticamente a ARCA. El tipo de comprobante ({detectedDoc.letter}) se detecta según la condición IVA del cliente.
-            </p>
+            <p className="text-[9px] text-[#5c7291] mt-0.5 ml-5">Tipo {detectedDoc.letter} según condición IVA del cliente.</p>
           )}
         </div>
 
-        {/* Cash Input */}
+        {/* Efectivo recibido */}
         {paymentMethod === 'Efectivo' && (
-          <div className="mb-3">
-            <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2">
-              <DollarSign className="w-4 h-4" /> Efectivo Recibido
-            </label>
+          <div className="px-2 py-1.5 border-b border-[#b8c4dc] shrink-0">
+            <div className="text-[9px] font-bold text-[#4a5a8c] uppercase mb-1">Efectivo Recibido</div>
             <input type="number" value={cashReceived} onChange={(e) => setCashReceived(e.target.value)} placeholder="0.00"
-              className="w-full px-3 py-2 premium-input" />
-            <div className="flex gap-2 mt-2">
+              className="erp-input w-full text-right font-mono font-bold mb-1" />
+            <div className="flex gap-1">
               {[100, 500, 1000, 2000, 5000, 10000].map((amount) => (
                 <button key={amount} onClick={() => setCashReceived(String(amount))}
-                  className="flex-1 py-1 text-xs bg-slate-100 rounded hover:bg-slate-200">${amount >= 1000 ? `${amount / 1000}k` : amount}</button>
+                  className="flex-1 py-0.5 text-[9px] border border-[#9bb3cc] bg-white hover:bg-[#dde3f4] text-[#1a3a5c] font-bold">
+                  ${amount >= 1000 ? `${amount / 1000}k` : amount}
+                </button>
               ))}
             </div>
             {cashReceived && parseFloat(cashReceived) >= total && (
-              <p className="text-sm text-slate-600 mt-2">
-                Vuelto: <span className="font-bold text-green-600">${change?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 }) ?? '0'}</span>
-              </p>
+              <div className="mt-1 flex justify-between text-[10px]">
+                <span className="text-[#5c7291]">Vuelto:</span>
+                <span className="font-bold text-green-700 font-mono">${change?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 }) ?? '0'}</span>
+              </div>
             )}
           </div>
         )}
 
-        {/* Total and Checkout */}
-        <div className="border-t border-slate-200 pt-4 mt-auto">
+        {/* Total + botón COBRAR */}
+        <div className="mt-auto shrink-0">
           {totalDiscount > 0 && (
-            <>
-              <div className="flex justify-between items-center mb-1 text-sm">
-                <span className="text-slate-500">Subtotal:</span>
-                <span className="text-slate-500">${subtotal?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between items-center mb-2 text-sm">
-                <span className="text-orange-600">Descuento:</span>
-                <span className="text-orange-600">-${totalDiscount?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 })}</span>
-              </div>
-            </>
+            <div className="px-2 py-1 border-b border-[#b8c4dc] flex justify-between text-[10px]">
+              <span className="text-[#5c7291]">Subtotal:</span>
+              <span className="font-mono">${subtotal?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
           )}
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-lg font-semibold text-slate-700">Total:</span>
-            <span className="text-2xl font-bold text-blue-600">
-              ${total?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 }) ?? '0'}
+          {totalDiscount > 0 && (
+            <div className="px-2 py-1 border-b border-[#b8c4dc] flex justify-between text-[10px]">
+              <span className="text-orange-600">Descuento:</span>
+              <span className="font-mono text-orange-600">-${totalDiscount?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
+          )}
+          {/* Total grande al estilo Dragonfish */}
+          <div className="bg-[#2563ad] px-3 py-3 flex items-center justify-between">
+            <span className="text-white font-bold text-sm">Total</span>
+            <span className="text-white font-black text-2xl font-mono">
+              $ {total?.toLocaleString?.('es-AR', { minimumFractionDigits: 2 }) ?? '0,00'}
             </span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1 p-2">
             <button onClick={clearCart} disabled={cart.length === 0}
-              className="px-4 py-3 border border-slate-100/80 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition disabled:opacity-50">
+              className="erp-btn-secondary text-xs py-2 px-3 disabled:opacity-40">
               Limpiar
             </button>
             <button onClick={handleCheckout} disabled={loading || mpLoading || cart.length === 0}
-              className={`flex-1 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                paymentMethod === 'MercadoPago' ? 'bg-sky-500 text-white hover:bg-sky-600' : 'bg-green-600 text-white hover:bg-green-700'}`}>
+              className={`flex-1 py-2 text-sm font-black border-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                paymentMethod === 'MercadoPago' ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-[#1e7c1e] text-white hover:bg-[#155a15]'}`}>
               {loading || mpLoading ? (
-                <><Loader2 className="w-5 h-5 animate-spin" />Procesando...</>
+                <><Loader2 className="w-4 h-4 animate-spin" />Procesando…</>
               ) : paymentMethod === 'MercadoPago' ? (
-                mpMode === 'qr' ? (
-                  <><QrCode className="w-5 h-5" />Generar QR MP</>
-                ) : mpMode === 'card' ? (
-                  <><CreditCard className="w-5 h-5" />Cobrar con tarjeta</>
-                ) : (
-                  <><ExternalLink className="w-5 h-5" />Pagar con MP</>
-                )
+                mpMode === 'qr' ? <><QrCode className="w-4 h-4" />Generar QR</> :
+                mpMode === 'card' ? <><CreditCard className="w-4 h-4" />Cobrar tarjeta</> :
+                <><ExternalLink className="w-4 h-4" />Pagar con MP</>
               ) : (
-                <><ShoppingCart className="w-5 h-5" />Cobrar (F4)</>
+                <><Receipt className="w-4 h-4" />COBRAR (F4)</>
               )}
             </button>
           </div>

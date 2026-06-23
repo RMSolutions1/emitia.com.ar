@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileCheck, Plus, Search, Eye, CheckCircle, XCircle, ArrowRight, Calendar, DollarSign, User, Printer, X, FileText } from 'lucide-react';
+import { FileCheck, Plus, Search, Eye, CheckCircle, XCircle, ArrowRight, Calendar, DollarSign, User, Printer, X, FileText, ClipboardList } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { PrintDocument, DocumentData, DocumentCompany, DocumentCustomer } from '@/components/print-document';
-import { ErpPageShell } from '@/components/erp/erp-page-shell';
+import { ErpPageShell, ErpKpiBox } from '@/components/erp/erp-page-shell';
 import { useErpSession } from '@/components/erp/use-erp-session';
 
 interface Quote {
@@ -241,95 +241,137 @@ export default function PresupuestosClient() {
         { label: 'Nuevo', icon: <Plus className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=presupuesto') },
       ]}
     >
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <p className="text-sm text-slate-500">Total</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
+        {/* KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <ErpKpiBox
+            label="Total"
+            value={stats.total.toString()}
+            icon={<ClipboardList className="w-5 h-5" />}
+            color="#2563ad"
+          />
+          <ErpKpiBox
+            label="Pendientes"
+            value={stats.pending.toString()}
+            icon={<Calendar className="w-5 h-5" />}
+            color="#d97706"
+          />
+          <ErpKpiBox
+            label="Convertidos"
+            value={stats.converted.toString()}
+            icon={<CheckCircle className="w-5 h-5" />}
+            color="#16a34a"
+          />
+          <ErpKpiBox
+            label="Valor Total"
+            value={formatCurrency(stats.totalValue)}
+            icon={<DollarSign className="w-5 h-5" />}
+            color="#7c3aed"
+          />
+        </div>
+
+        {/* Filtros */}
+        <div className="erp-panel mb-4">
+          <div className="erp-panel-header">
+            <span>Filtros</span>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <p className="text-sm text-slate-500">Pendientes</p>
-            <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <p className="text-sm text-slate-500">Convertidos</p>
-            <p className="text-2xl font-bold text-green-600">{stats.converted}</p>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
-            <p className="text-sm text-slate-500">Valor Total</p>
-            <p className="text-2xl font-bold text-blue-600">{formatCurrency(stats.totalValue)}</p>
+          <div className="p-2 flex gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9baac8]" />
+              <input
+                type="text"
+                placeholder="Buscar por número o cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="erp-input w-full pl-8"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="erp-input w-40"
+            >
+              <option value="">Todos los estados</option>
+              <option value="pending">Pendientes</option>
+              <option value="approved">Aprobados</option>
+              <option value="converted">Convertidos</option>
+              <option value="rejected">Rechazados</option>
+            </select>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="erp-panel p-4 mb-6 flex gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por número o cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border rounded-lg"
-          >
-            <option value="">Todos los estados</option>
-            <option value="pending">Pendientes</option>
-            <option value="approved">Aprobados</option>
-            <option value="converted">Convertidos</option>
-            <option value="rejected">Rechazados</option>
-          </select>
-        </div>
-
-        {/* Table */}
+        {/* Tabla */}
         <div className="erp-panel overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Número</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Cliente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Total</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Válido hasta</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredQuotes.map((quote) => (
-                <tr key={quote.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-medium">{quote.quoteNumber}</td>
-                  <td className="px-6 py-4">{quote.customerName}</td>
-                  <td className="px-6 py-4 font-semibold">{formatCurrency(quote.total)}</td>
-                  <td className="px-6 py-4">{formatDate(quote.validUntil)}</td>
-                  <td className="px-6 py-4">{getStatusBadge(quote.status)}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => { setSelectedQuote(quote); setShowModal(true); }}
-                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                        title="Ver detalle"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Ver
-                      </button>
-                      <button
-                        onClick={() => handlePrintQuote(quote)}
-                        className="text-green-600 hover:text-green-800 p-1"
-                        title="Imprimir presupuesto"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="erp-panel-header">
+            <span>Presupuestos</span>
+            <span className="text-[10px] font-normal opacity-70">{filteredQuotes.length} registro(s)</span>
+          </div>
+          {filteredQuotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-[#5c7291] gap-4">
+              <ClipboardList className="w-14 h-14 text-[#b8c4dc]" />
+              <div className="text-center">
+                <p className="text-base font-bold text-[#1a3a5c]">
+                  {quotes.length === 0 ? 'Todavía no hay presupuestos' : 'Sin resultados para la búsqueda'}
+                </p>
+                <p className="text-sm text-[#9baac8] mt-1">
+                  {quotes.length === 0
+                    ? 'Creá tu primer presupuesto desde "Emitir Comprobante"'
+                    : 'Probá con otros términos o cambiá el filtro de estado'}
+                </p>
+              </div>
+              {quotes.length === 0 && (
+                <button
+                  onClick={() => router.push('/facturacion/emitir?modo=presupuesto')}
+                  className="erp-btn-primary flex items-center gap-2 mt-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Crear Presupuesto
+                </button>
+              )}
+            </div>
+          ) : (
+            <table className="erp-grid-table w-full">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th>Número</th>
+                  <th>Cliente</th>
+                  <th className="text-right">Total</th>
+                  <th>Válido hasta</th>
+                  <th>Estado</th>
+                  <th className="text-center">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredQuotes.map((quote) => (
+                  <tr key={quote.id} className="cursor-pointer" onClick={() => { setSelectedQuote(quote); setShowModal(true); }}>
+                    <td><span className="font-mono font-bold text-[#2563ad]">{quote.quoteNumber}</span></td>
+                    <td>{quote.customerName}</td>
+                    <td className="text-right font-semibold">{formatCurrency(quote.total)}</td>
+                    <td>{formatDate(quote.validUntil)}</td>
+                    <td>{getStatusBadge(quote.status)}</td>
+                    <td className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedQuote(quote); setShowModal(true); }}
+                          className="erp-btn-secondary !p-1 !text-[10px] flex items-center gap-1"
+                          title="Ver detalle"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Ver
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handlePrintQuote(quote); }}
+                          className="erp-btn-secondary !p-1"
+                          title="Imprimir presupuesto"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
       {/* Modal Ver Presupuesto */}

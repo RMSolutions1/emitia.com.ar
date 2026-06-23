@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 
-const publicPaths = ['/', '/login', '/registro', '/recuperar-clave', '/precios', '/caracteristicas'];
+const publicPaths = ['/login', '/registro', '/recuperar-clave'];
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

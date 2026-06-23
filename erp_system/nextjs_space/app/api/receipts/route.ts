@@ -142,16 +142,22 @@ export async function POST(request: NextRequest) {
         }),
       ];
 
-      // Update paidAmount on linked invoices
+      // Update paidAmount on linked invoices and recalculate status
       if (invoicePayments && Array.isArray(invoicePayments)) {
         for (const ip of invoicePayments) {
           if (ip.invoiceId && ip.amount > 0) {
-            txOps.push(
-              prisma.invoice.update({
-                where: { id: ip.invoiceId },
-                data: { paidAmount: { increment: ip.amount } },
-              })
-            );
+            // Fetch current invoice to compute new paidAmount and status
+            const inv = await prisma.invoice.findUnique({ where: { id: ip.invoiceId }, select: { paidAmount: true, total: true } });
+            if (inv) {
+              const newPaid = (inv.paidAmount || 0) + ip.amount;
+              const newStatus = newPaid >= inv.total ? 'paid' : 'partial';
+              txOps.push(
+                prisma.invoice.update({
+                  where: { id: ip.invoiceId },
+                  data: { paidAmount: newPaid, status: newStatus },
+                })
+              );
+            }
           }
         }
       }

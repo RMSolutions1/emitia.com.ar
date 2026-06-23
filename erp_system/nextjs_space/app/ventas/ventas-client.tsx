@@ -56,7 +56,7 @@ const paymentMethodIcons: Record<string, React.ElementType> = {
 
 export function VentasClient() {
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || 'ADMIN';
+  const userRole = session?.user?.role || 'ADMIN';
   const [sales, setSales] = useState<Sale[]>([]);
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

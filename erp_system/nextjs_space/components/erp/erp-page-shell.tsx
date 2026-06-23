@@ -23,6 +23,7 @@ interface ErpPageShellProps {
   header?: ReactNode;
   onRefresh?: () => void;
   refreshing?: boolean;
+  showMenubar?: boolean;
   children: ReactNode;
   statusExtra?: ReactNode;
 }
@@ -38,6 +39,7 @@ export function ErpPageShell({
   header,
   onRefresh,
   refreshing,
+  showMenubar = true,
   children,
   statusExtra,
 }: ErpPageShellProps) {
@@ -80,6 +82,7 @@ export function ErpPageShell({
       module={module}
       statusText={statusText}
       userRole={userRole}
+      showMenubar={showMenubar}
       menubarExtra={menubarExtra}
       toolbar={toolbarNode}
       header={header}
@@ -118,12 +121,16 @@ export function ErpKpiBox({
   hint,
   accent = 'default',
   onClick,
+  icon,
+  color,
 }: {
   label: string;
   value: string | number;
   hint?: ReactNode;
   accent?: 'default' | 'primary' | 'warning' | 'success';
   onClick?: () => void;
+  icon?: ReactNode;
+  color?: string;
 }) {
   const accentClass =
     accent === 'primary'
@@ -136,15 +143,37 @@ export function ErpKpiBox({
 
   return (
     <div
-      className={`erp-kpi ${accentClass} ${onClick ? 'cursor-pointer hover:border-[#2563ad]' : ''}`}
+      className={`erp-kpi ${accentClass} ${onClick ? 'cursor-pointer hover:border-[#2563ad]' : ''} relative overflow-hidden`}
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      <p className="erp-kpi-label">{label}</p>
-      <p className="erp-kpi-value">{value}</p>
-      {hint && <div className="mt-1">{hint}</div>}
+      {/* Icono de fondo decorativo */}
+      {icon && color && (
+        <div
+          className="absolute -bottom-1 -right-1 w-12 h-12 opacity-10 pointer-events-none"
+          style={{ color }}
+          aria-hidden
+        >
+          {icon}
+        </div>
+      )}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="erp-kpi-label">{label}</p>
+          <p className="erp-kpi-value">{value}</p>
+          {hint && <div className="mt-1">{hint}</div>}
+        </div>
+        {icon && color && (
+          <div
+            className="shrink-0 w-7 h-7 flex items-center justify-center text-white mt-0.5"
+            style={{ backgroundColor: color }}
+          >
+            {icon}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

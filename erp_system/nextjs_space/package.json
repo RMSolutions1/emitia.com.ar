@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "dev:3001": "next dev -p 3001",
+    "dev:reset": "node scripts/clean-next-cache.mjs && next dev -p 3001",
+    "build": "node scripts/next-build.mjs",
     "start": "next start",
     "lint": "next lint",
     "seed:plans": "tsx --require dotenv/config scripts/seed-platform-plans.ts",
@@ -131,9 +133,9 @@
     "zustand": "5.0.3"
   },
   "browserslist": [
-    "ie >= 11",
     "> 0.5%",
     "last 2 versions",
-    "not dead"
+    "not dead",
+    "not ie <= 11"
   ]
 }

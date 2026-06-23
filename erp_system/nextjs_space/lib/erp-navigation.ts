@@ -47,7 +47,6 @@ export function buildErpNavSections(userRole: string): ErpNavSection[] {
       items: [
         { name: 'Panel', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Punto de Venta (POS)', href: '/pos', icon: ShoppingCart },
-        { name: 'Mi Perfil', href: '/configuracion/perfil', icon: UserCog },
       ],
     },
     {
@@ -55,16 +54,11 @@ export function buildErpNavSections(userRole: string): ErpNavSection[] {
       items: [
         { name: 'Emitir Comprobante', href: '/facturacion/emitir', icon: FileSpreadsheet },
         { name: 'Comprobantes emitidos', href: '/facturas', icon: Receipt },
+        { name: 'Historial de Ventas', href: '/ventas', icon: FileText },
         { name: 'Recibos de cobranza', href: '/recibos', icon: Wallet },
         { name: 'Presupuestos', href: '/presupuestos', icon: FileCheck },
         { name: 'Tickets (historial)', href: '/tickets', icon: Printer },
         { name: 'Recurrentes', href: '/facturacion/recurrentes', icon: RefreshCw },
-      ],
-    },
-    {
-      label: 'Ventas',
-      items: [
-        { name: 'Historial de ventas', href: '/ventas', icon: FileText },
       ],
     },
     {

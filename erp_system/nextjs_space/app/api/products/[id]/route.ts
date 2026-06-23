@@ -55,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     const body = await req.json();
-    const { name, description, sku, barcode, price, cost, stock, minStock, categoryId, active } = body;
+    const { name, description, sku, barcode, price, cost, stock, minStock, categoryId, active, brand, unit } = body;
 
     const product = await prisma.product.update({
       where: { id: params.id },
@@ -70,6 +70,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         minStock: minStock !== undefined ? parseInt(minStock) : undefined,
         categoryId,
         active,
+        brand: brand !== undefined ? (brand || null) : undefined,
+        unit: unit || undefined,
       },
     });
 

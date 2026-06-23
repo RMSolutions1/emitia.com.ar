@@ -89,12 +89,13 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id = (user as any).id;
-        token.role = (user as any).role;
-        token.companyId = (user as any).companyId;
-        token.companyName = (user as any).companyName;
-        token.companyPlan = (user as any).companyPlan;
-        token.picture = (user as any).image || null;
+        const u = user as typeof user & { id: string; role: string; companyId: string | null; companyName: string | null; companyPlan: string };
+        token.id = u.id;
+        token.role = u.role;
+        token.companyId = u.companyId;
+        token.companyName = u.companyName;
+        token.companyPlan = u.companyPlan;
+        token.picture = u.image || null;
       }
       if (trigger === 'update' && session) {
         if (session.name !== undefined) token.name = session.name;
@@ -104,11 +105,11 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session?.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).companyId = token.companyId;
-        (session.user as any).companyName = token.companyName;
-        (session.user as any).companyPlan = token.companyPlan;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.companyId = token.companyId;
+        session.user.companyName = token.companyName;
+        session.user.companyPlan = token.companyPlan;
         session.user.name = token.name as string | undefined;
         session.user.image = (token.picture as string | null) || null;
       }
@@ -124,28 +125,3 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-// Tipos extendidos para TypeScript
-declare module 'next-auth' {
-  interface Session {
-    user: {
-      id: string;
-      name?: string | null;
-      email?: string | null;
-      image?: string | null;
-      role: string;
-      companyId: string | null;
-      companyName: string | null;
-      companyPlan: string;
-    };
-  }
-}
-
-declare module 'next-auth/jwt' {
-  interface JWT {
-    id: string;
-    role: string;
-    companyId: string | null;
-    companyName: string | null;
-    companyPlan: string;
-  }
-}

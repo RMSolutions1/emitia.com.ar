@@ -172,7 +172,7 @@ async function main() {
   await auditDatabase();
   console.log('');
 
-  await httpStatus('Landing pública', `${BASE}/`, 200);
+  await httpStatus('Raíz redirige a login', `${BASE}/`, [307, 302]);
   await httpStatus('Login page', `${BASE}/login`, 200);
   await httpStatus('Organización (sin sesión)', `${BASE}/configuracion/organizacion`, [307, 302]);
   await httpStatus('RabbitMQ mgmt', 'http://localhost:15672/', 200);

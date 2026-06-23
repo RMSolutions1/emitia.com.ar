@@ -17,9 +17,10 @@ export async function GET(req: Request) {
     const isSuperadmin = (session.user as any).role === 'superadmin';
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status');
+    const status    = searchParams.get('status');
     const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    const endDate   = searchParams.get('endDate');
+    const search    = searchParams.get('search');
 
     const where: any = {};
     if (!isSuperadmin && companyId) {
@@ -28,11 +29,18 @@ export async function GET(req: Request) {
     if (status) where.status = status;
     if (startDate) where.createdAt = { ...where.createdAt, gte: new Date(startDate) };
     if (endDate) where.createdAt = { ...where.createdAt, lte: new Date(endDate) };
+    if (search) {
+      where.OR = [
+        { invoiceNumber: { contains: search, mode: 'insensitive' } },
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { customerDocument: { contains: search } },
+      ];
+    }
 
     const invoices = await prisma.invoice.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: 500,
+      take: search ? 20 : 500,
     });
 
     return NextResponse.json(invoices);

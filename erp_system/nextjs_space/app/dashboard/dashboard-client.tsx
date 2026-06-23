@@ -4,20 +4,19 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
-  DollarSign, Package, Users, AlertTriangle, FileText,
-  TrendingUp, ShoppingCart, Plus, ArrowRight, Clock,
-  CreditCard, Truck, BarChart3, Receipt, CalendarDays,
-  PackageOpen, UserPlus, Sparkles, Wallet, ArrowUpRight,
-  ArrowDownRight, Zap, Star, AlertCircle, CheckCircle2,
-  Banknote, Smartphone, Building2, RefreshCw, Printer,
-  FileSpreadsheet, ChevronRight, Activity, Target, Eye
+  Package, AlertTriangle,
+  ShoppingCart, Clock,
+  CreditCard, Wallet, ArrowUpRight,
+  ArrowDownRight, Star, AlertCircle, CheckCircle2,
+  Banknote, Smartphone, Building2, RefreshCw,
+  ChevronRight, Activity, Target, UserPlus, CalendarDays,
+  Receipt, PlusCircle, Users, Boxes, Zap, TrendingUp, FileText, BarChart3, Truck
 } from 'lucide-react';
+import { ErpPageShell, ErpKpiBox } from '@/components/erp/erp-page-shell';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, BarChart, Bar, Cell
 } from 'recharts';
-import { SetupChecklist } from '@/components/setup-checklist';
-import { ErpPageShell, ErpPanel } from '@/components/erp/erp-page-shell';
 
 interface DashboardData {
   userName: string;
@@ -50,7 +49,6 @@ interface DashboardData {
   recentSales: Array<{ id: string; saleNumber: string; total: number; paymentMethod: string; customerName: string; date: string }>;
   lowStockList: Array<{ name: string; sku: string; stock: number; minStock: number; price: number }>;
   topClients: Array<{ name: string; total: number; count: number }>;
-  caeAlerts: Array<{ id: string; invoiceNumber: string; customerName: string; total: number; caeExpiration: string }>;
   unpaidInvoicesList: Array<{ id: string; invoiceNumber: string; customerName: string; total: number; date: string }>;
 }
 
@@ -123,10 +121,9 @@ export function DashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartView, setChartView] = useState<'week' | 'month'>('week');
-  const [currentDate, setCurrentDate] = useState('');
   const router = useRouter();
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || 'ADMIN';
+  const userRole = session?.user?.role || 'ADMIN';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -138,10 +135,6 @@ export function DashboardClient() {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    setCurrentDate(new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
   }, []);
 
   useEffect(() => {
@@ -189,157 +182,182 @@ export function DashboardClient() {
   const currentChartData = chartView === 'week' ? data.chartData : data.monthlyChartData;
   const paymentEntries = Object.entries(data.paymentBreakdown).sort((a, b) => b[1].total - a[1].total);
   const totalPayments = paymentEntries.reduce((s, [, v]) => s + v.total, 0);
-  const alertCount = data.lowStockProducts + data.pendingInvoicesCount + (data.outOfStockProducts > 0 ? 1 : 0) + (data.caeAlerts?.length || 0) + (data.unpaidInvoicesList?.length || 0);
+  const alertCount = data.lowStockProducts + data.pendingInvoicesCount + (data.outOfStockProducts > 0 ? 1 : 0) + (data.unpaidInvoicesList?.length || 0);
 
   return (
     <ErpPageShell
       title="Panel de Control"
-      subtitle={`${getGreeting()}, ${data.userName?.split(' ')[0] || 'Usuario'} · ${currentDate}`}
+      subtitle={`${getGreeting()}, ${data.userName?.split(' ')[0] || 'Usuario'}`}
       module="INICIO"
       statusText={alertCount > 0 ? `${alertCount} alerta(s) pendiente(s)` : 'Sistema operativo'}
       userRole={userRole}
       onRefresh={fetchData}
       refreshing={loading}
-      toolbar={[
-        { label: 'POS', icon: <ShoppingCart className="w-4 h-4" />, onClick: () => router.push('/pos') },
-        { label: 'Facturar', icon: <Receipt className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=factura') },
-        { label: 'Presupuesto', icon: <FileSpreadsheet className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=presupuesto') },
-        { label: 'Remito', icon: <Truck className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=remito') },
-        { label: 'Clientes', icon: <Users className="w-4 h-4" />, onClick: () => router.push('/clientes') },
-        { label: 'Stock', icon: <Package className="w-4 h-4" />, onClick: () => router.push('/inventario') },
-      ]}
     >
     <div className="space-y-2">
-      <SetupChecklist />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-        <div className="erp-kpi erp-kpi-primary">
-          <p className="erp-kpi-label">Ventas de Hoy</p>
-          <p className="erp-kpi-value text-2xl">{fmt(data.todayRevenue)}</p>
-          <div className="mt-1 text-[11px] text-blue-100 flex justify-between">
-            <span>{data.todayCount} venta{data.todayCount !== 1 ? 's' : ''}</span>
-            <TrendBadge value={data.todayTrend} label="vs ayer" />
-          </div>
-        </div>
-        <div className="dash-kpi-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="dash-kpi-label">Ventas del Mes</p>
-              <p className="dash-kpi-value">{fmt(data.monthRevenue)}</p>
-              <div className="mt-2"><TrendBadge value={data.monthTrend} label="vs mes ant." /></div>
-            </div>
-            <div className="dash-kpi-icon bg-gradient-to-br from-emerald-50 to-teal-50">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
-            </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-slate-100/60 flex justify-between text-xs text-slate-400">
-            <span>{data.monthCount} ventas</span>
-            <span>Ticket prom: {fmt(data.avgTicketMonth)}</span>
-          </div>
-        </div>
 
-        {/* Clientes */}
-        <div className="dash-kpi-card cursor-pointer" onClick={() => router.push('/clientes')}>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="dash-kpi-label">Clientes</p>
-              <p className="dash-kpi-value">{data.totalCustomers}</p>
-              <div className="mt-2">
-                {data.newCustomersThisMonth > 0 ? (
-                  <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-                    <UserPlus className="w-3 h-3" /> +{data.newCustomersThisMonth} este mes
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400">Sin nuevos este mes</span>
-                )}
-              </div>
-            </div>
-            <div className="dash-kpi-icon bg-gradient-to-br from-violet-50 to-purple-50">
-              <Users className="w-5 h-5 text-violet-600" />
-            </div>
-          </div>
+      {/* ══ Accesos Rápidos ══ */}
+      <div className="erp-panel">
+        <div className="erp-panel-header flex items-center gap-2">
+          <Zap className="w-3 h-3" /> Accesos Rápidos
         </div>
-
-        {/* Inventario */}
-        <div className="dash-kpi-card cursor-pointer" onClick={() => router.push('/inventario')}>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="dash-kpi-label">Productos</p>
-              <p className="dash-kpi-value">{data.totalProducts}</p>
-              <div className="mt-2">
-                {data.lowStockProducts > 0 ? (
-                  <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-600">
-                    <AlertTriangle className="w-3 h-3" /> {data.lowStockProducts} stock bajo
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-                    <CheckCircle2 className="w-3 h-3" /> Stock OK
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="dash-kpi-icon bg-gradient-to-br from-orange-50 to-amber-50">
-              <Package className="w-5 h-5 text-orange-600" />
-            </div>
-          </div>
+        <div className="flex flex-wrap gap-2 p-2">
+          {[
+            { label: 'Punto de Venta', icon: ShoppingCart, href: '/pos', color: 'bg-[#1e7c1e] text-white' },
+            { label: 'Nueva Factura', icon: Receipt, href: '/facturacion/emitir', color: 'bg-[#2563ad] text-white' },
+            { label: 'Nuevo Cliente', icon: Users, href: '/clientes', color: 'bg-[#5c4da0] text-white' },
+            { label: 'Nuevo Producto', icon: Boxes, href: '/inventario', color: 'bg-[#7c4a1e] text-white' },
+            { label: 'Cuentas Corrientes', icon: Wallet, href: '/cuentas-corrientes', color: 'bg-[#1e5c7c] text-white' },
+            { label: 'Ver Proveedores', icon: Building2, href: '/proveedores', color: 'bg-[#4a5a8c] text-white' },
+          ].map(({ label, icon: Icon, href, color }) => (
+            <button
+              key={href}
+              onClick={() => router.push(href)}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold border-0 ${color} hover:opacity-90 transition-opacity`}
+            >
+              <Icon className="w-3.5 h-3.5" />{label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ==================== QUICK ACTIONS ==================== */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-        {[
-          { label: 'Punto de Venta', icon: ShoppingCart, href: '/pos', gradient: 'from-emerald-500 to-emerald-600' },
-          { label: 'Facturar', icon: Receipt, href: '/facturacion/emitir?modo=factura', gradient: 'from-blue-500 to-blue-600' },
-          { label: 'Presupuesto', icon: FileSpreadsheet, href: '/facturacion/emitir?modo=presupuesto', gradient: 'from-indigo-500 to-indigo-600' },
-          { label: 'Remito', icon: Truck, href: '/facturacion/emitir?modo=remito', gradient: 'from-teal-500 to-teal-600' },
-          { label: 'Importar IA', icon: Sparkles, href: '/inventario/importar', gradient: 'from-purple-500 to-purple-600' },
-          { label: 'Comprobantes', icon: Receipt, href: '/facturas', gradient: 'from-sky-500 to-sky-600' },
-        ].map((a, i) => (
-          <button key={a.label} onClick={() => router.push(a.href)}
-            className={`dash-quick-action bg-gradient-to-br ${a.gradient} animate-fade-in-up stagger-${i + 1}`}>
-            <a.icon className="w-5 h-5" />
-            <span>{a.label}</span>
-          </button>
-        ))}
-      </div>
+      {/* ══ Alertas de stock bajo ══ */}
+      {(data.lowStockProducts > 0 || data.outOfStockProducts > 0) && (
+        <div className="erp-panel">
+          <div className="erp-panel-header flex items-center gap-2 bg-amber-700 text-white">
+            <AlertTriangle className="w-3 h-3" />
+            Alertas de Stock — {data.lowStockProducts + data.outOfStockProducts} artículo(s) requieren atención
+          </div>
+          <div className="overflow-x-auto">
+            <table className="erp-grid-table">
+              <thead>
+                <tr>
+                  <th>Artículo</th>
+                  <th className="w-24">Cód. / SKU</th>
+                  <th className="w-16 text-center">Stock Actual</th>
+                  <th className="w-16 text-center">Stock Mín.</th>
+                  <th className="w-20 text-right">Precio</th>
+                  <th className="w-16 text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.lowStockList?.slice(0, 8).map((item, i) => (
+                  <tr key={i} className="cursor-pointer" onClick={() => router.push('/inventario')}>
+                    <td><span className="cell-text font-semibold">{item.name}</span></td>
+                    <td><span className="cell-text font-mono text-[10px]">{item.sku}</span></td>
+                    <td className="text-center">
+                      <span className={`font-bold text-[11px] ${item.stock <= 0 ? 'text-red-600' : 'text-amber-600'}`}>{item.stock}</span>
+                    </td>
+                    <td className="text-center text-[11px] text-[#5c7291]">{item.minStock}</td>
+                    <td className="text-right pr-2 font-mono text-[11px]">${item.price?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                    <td className="text-center">
+                      <span className={`text-[10px] font-bold px-1 ${item.stock <= 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {item.stock <= 0 ? 'SIN STOCK' : 'BAJO'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {data.lowStockList?.length > 8 && (
+            <div className="erp-grid-footer">
+              Mostrando 8 de {data.lowStockList.length} artículos con stock bajo — <button className="underline" onClick={() => router.push('/inventario')}>Ver todos</button>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* ==================== SECONDARY METRICS ==================== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="dash-metric-card">
-          <div className="dash-metric-icon-sm bg-gradient-to-br from-sky-50 to-blue-50">
-            <Receipt className="w-4 h-4 text-sky-600" />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-400 font-medium">Facturas del Mes</p>
-            <p className="text-lg font-bold text-slate-800">{data.totalInvoicesMonth}</p>
-          </div>
-        </div>
-        <div className="dash-metric-card">
-          <div className="dash-metric-icon-sm bg-gradient-to-br from-indigo-50 to-violet-50">
-            <Wallet className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-400 font-medium">Por Cobrar</p>
-            <p className="text-lg font-bold text-slate-800">{fmt(data.totalReceivable)}</p>
-          </div>
-        </div>
-        <div className="dash-metric-card">
-          <div className={`dash-metric-icon-sm ${data.pendingInvoicesCount > 0 ? 'bg-gradient-to-br from-red-50 to-rose-50' : 'bg-gradient-to-br from-emerald-50 to-green-50'}`}>
-            <FileText className={`w-4 h-4 ${data.pendingInvoicesCount > 0 ? 'text-red-600' : 'text-emerald-600'}`} />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-400 font-medium">Pendientes ARCA</p>
-            <p className={`text-lg font-bold ${data.pendingInvoicesCount > 0 ? 'text-red-600' : 'text-slate-800'}`}>{data.pendingInvoicesCount}</p>
-          </div>
-        </div>
-        <div className="dash-metric-card">
-          <div className="dash-metric-icon-sm bg-gradient-to-br from-teal-50 to-cyan-50">
-            <Building2 className="w-4 h-4 text-teal-600" />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-400 font-medium">Proveedores</p>
-            <p className="text-lg font-bold text-slate-800">{data.totalSuppliers}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <ErpKpiBox
+          label="Ventas de Hoy"
+          value={fmt(data.todayRevenue)}
+          accent="primary"
+          icon={<ShoppingCart className="w-full h-full" />}
+          color="#2563ad"
+          hint={
+            <div className="text-[11px] text-blue-100 flex justify-between">
+              <span>{data.todayCount} venta{data.todayCount !== 1 ? 's' : ''}</span>
+              <TrendBadge value={data.todayTrend} label="vs ayer" />
+            </div>
+          }
+        />
+        <ErpKpiBox
+          label="Ventas del Mes"
+          value={fmt(data.monthRevenue)}
+          icon={<TrendingUp className="w-full h-full" />}
+          color="#16a34a"
+          hint={
+            <div className="flex items-center justify-between gap-2">
+              <TrendBadge value={data.monthTrend} label="vs mes ant." />
+              <span className="text-[10px] text-[#5c7291]">{data.monthCount} ventas</span>
+            </div>
+          }
+          onClick={() => router.push('/ventas')}
+        />
+        <ErpKpiBox
+          label="Facturas del Mes"
+          value={data.totalInvoicesMonth}
+          icon={<FileText className="w-full h-full" />}
+          color="#7c3aed"
+          hint={<span className="text-[10px] text-[#5c7291]">Ticket prom: {fmt(data.avgTicketMonth)}</span>}
+          onClick={() => router.push('/facturas')}
+        />
+        <ErpKpiBox
+          label="Por Cobrar"
+          value={fmt(data.totalReceivable)}
+          icon={<Wallet className="w-full h-full" />}
+          color="#d97706"
+          accent={data.totalReceivable > 0 ? 'warning' : 'default'}
+          hint={<span className="text-[10px] text-[#5c7291]">Cuentas corrientes</span>}
+          onClick={() => router.push('/cuentas-corrientes')}
+        />
+        <ErpKpiBox
+          label="Clientes"
+          value={data.totalCustomers}
+          icon={<Users className="w-full h-full" />}
+          color="#0891b2"
+          hint={data.newCustomersThisMonth > 0 ? (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600">
+              <UserPlus className="w-3 h-3" /> +{data.newCustomersThisMonth} este mes
+            </span>
+          ) : (
+            <span className="text-[10px] text-[#5c7291]">Sin nuevos este mes</span>
+          )}
+          onClick={() => router.push('/clientes')}
+        />
+        <ErpKpiBox
+          label="Productos"
+          value={data.totalProducts}
+          icon={<Package className="w-full h-full" />}
+          color="#059669"
+          hint={data.lowStockProducts > 0 ? (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600">
+              <AlertTriangle className="w-3 h-3" /> {data.lowStockProducts} stock bajo
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600">
+              <CheckCircle2 className="w-3 h-3" /> Stock OK
+            </span>
+          )}
+          onClick={() => router.push('/inventario')}
+        />
+        <ErpKpiBox
+          label="Pendientes ARCA"
+          value={data.pendingInvoicesCount}
+          icon={<BarChart3 className="w-full h-full" />}
+          color="#dc2626"
+          accent={data.pendingInvoicesCount > 0 ? 'warning' : 'default'}
+          hint={<span className="text-[10px] text-[#5c7291]">Sin CAE o rechazadas</span>}
+        />
+        <ErpKpiBox
+          label="Proveedores"
+          value={data.totalSuppliers}
+          icon={<Truck className="w-full h-full" />}
+          color="#64748b"
+          hint={<span className="text-[10px] text-[#5c7291]">Base de compras</span>}
+          onClick={() => router.push('/proveedores')}
+        />
       </div>
 
       {/* ==================== CHART + PAYMENTS ==================== */}
@@ -559,64 +577,32 @@ export function DashboardClient() {
       )}
 
       {/* ==================== ALERTAS ==================== */}
-      {((data.caeAlerts && data.caeAlerts.length > 0) || (data.unpaidInvoicesList && data.unpaidInvoicesList.length > 0)) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {data.caeAlerts && data.caeAlerts.length > 0 && (
-            <div className="dash-card !border-red-100/80">
-              <h3 className="dash-card-title mb-4">
-                <AlertCircle className="w-4 h-4 text-red-500" />
-                CAE por Vencer
-                <span className="px-2 py-0.5 text-[10px] font-bold bg-red-100 text-red-700 rounded-full ml-2">{data.caeAlerts.length}</span>
-              </h3>
-              <div className="space-y-2">
-                {data.caeAlerts.map((alert) => {
-                  const expDate = new Date(alert.caeExpiration);
-                  const daysLeft = Math.ceil((expDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                  return (
-                    <div key={alert.id} className="flex items-center gap-3 p-3 rounded-xl bg-red-50/50 border border-red-100/50">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{alert.invoiceNumber}</p>
-                        <p className="text-[11px] text-slate-500 truncate">{alert.customerName}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-slate-800">{fmt(alert.total)}</p>
-                        <p className={`text-[10px] font-bold ${daysLeft <= 2 ? 'text-red-600' : 'text-amber-600'}`}>Vence en {daysLeft}d</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {data.unpaidInvoicesList && data.unpaidInvoicesList.length > 0 && (
-            <div className="dash-card !border-amber-100/80">
-              <h3 className="dash-card-title mb-4">
-                <CalendarDays className="w-4 h-4 text-amber-500" />
-                Facturas Pendientes de Cobro
-                <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full ml-2">{data.unpaidInvoicesList.length}</span>
-              </h3>
-              <div className="space-y-2">
-                {data.unpaidInvoicesList.map((inv) => {
-                  const daysOld = Math.ceil((Date.now() - new Date(inv.date).getTime()) / (1000 * 60 * 60 * 24));
-                  return (
-                    <div key={inv.id} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100/50">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{inv.invoiceNumber}</p>
-                        <p className="text-[11px] text-slate-500 truncate">{inv.customerName}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-slate-800">{fmt(inv.total)}</p>
-                        <p className={`text-[10px] font-bold ${
-                          daysOld > 30 ? 'text-red-600' : daysOld > 15 ? 'text-amber-600' : 'text-slate-500'
-                        }`}>Hace {daysOld}d</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+      {data.unpaidInvoicesList && data.unpaidInvoicesList.length > 0 && (
+        <div className="dash-card !border-amber-100/80">
+          <h3 className="dash-card-title mb-4">
+            <CalendarDays className="w-4 h-4 text-amber-500" />
+            Facturas Pendientes de Cobro
+            <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full ml-2">{data.unpaidInvoicesList.length}</span>
+          </h3>
+          <div className="space-y-2">
+            {data.unpaidInvoicesList.map((inv) => {
+              const daysOld = Math.ceil((Date.now() - new Date(inv.date).getTime()) / (1000 * 60 * 60 * 24));
+              return (
+                <div key={inv.id} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{inv.invoiceNumber}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{inv.customerName}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-slate-800">{fmt(inv.total)}</p>
+                    <p className={`text-[10px] font-bold ${
+                      daysOld > 30 ? 'text-red-600' : daysOld > 15 ? 'text-amber-600' : 'text-slate-500'
+                    }`}>Hace {daysOld}d</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — Prisma filters dinámicos por tenant
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -50,12 +50,13 @@ export async function GET(request: NextRequest) {
         orderBy: { stock: 'asc' },
       }),
 
-      // Invoices pending (without CAE, status != cancelled)
+      // Facturas pendientes de autorización ARCA (sin CAE)
       prisma.invoice.findMany({
         where: {
           ...companyFilter,
           cae: null,
-          status: { not: 'cancelled' },
+          status: { not: 'anulada' },
+          documentType: 'factura',
         },
         select: { id: true, invoiceNumber: true, total: true, createdAt: true, customerName: true },
         take: 10,

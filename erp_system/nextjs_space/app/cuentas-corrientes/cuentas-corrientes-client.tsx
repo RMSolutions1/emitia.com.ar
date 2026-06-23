@@ -86,7 +86,7 @@ export default function CuentasCorrientesClient() {
 
   const fetchBusinessConfig = async () => {
     try {
-      const res = await fetch('/api/business');
+      const res = await fetch('/api/config/business');
       if (res.ok) setBusinessConfig(await res.json());
     } catch {}
   };
@@ -225,104 +225,88 @@ export default function CuentasCorrientesClient() {
         { label: 'Recibo fiscal', icon: <ExternalLink className="w-4 h-4" />, onClick: () => router.push('/facturacion/emitir?modo=factura') },
       ]}
     >
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 rounded-xl"><Users className="w-5 h-5 text-blue-600" /></div>
-            <div>
-              <p className="text-sm text-slate-500">Total Cuentas</p>
-              <p className="text-xl font-bold text-slate-900">{stats.totalAccounts}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-red-50 rounded-xl"><ArrowUpRight className="w-5 h-5 text-red-600" /></div>
-            <div>
-              <p className="text-sm text-slate-500">Total Deuda</p>
-              <p className="text-xl font-bold text-red-600">{formatCurrency(stats.totalDebt)}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-green-50 rounded-xl"><ArrowDownRight className="w-5 h-5 text-green-600" /></div>
-            <div>
-              <p className="text-sm text-slate-500">Saldo a Favor</p>
-              <p className="text-xl font-bold text-green-600">{formatCurrency(stats.totalCredit)}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-orange-50 rounded-xl"><AlertCircle className="w-5 h-5 text-orange-600" /></div>
-            <div>
-              <p className="text-sm text-slate-500">Con Deuda</p>
-              <p className="text-xl font-bold text-slate-900">{stats.accountsWithDebt}</p>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-2">
+      {/* KPIs ERP */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <ErpKpiBox label="Total Cuentas" value={stats.totalAccounts} accent="primary" />
+        <ErpKpiBox label="Total Deuda" value={formatCurrency(stats.totalDebt)} accent="warning" />
+        <ErpKpiBox label="Saldo a Favor" value={formatCurrency(stats.totalCredit)} />
+        <ErpKpiBox label="Con Deuda" value={stats.accountsWithDebt} accent={stats.accountsWithDebt > 0 ? 'warning' : undefined} />
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input type="text" placeholder="Buscar por nombre o documento..." value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 premium-input" />
+      {/* Lista de cuentas estilo ERP */}
+      <div className="erp-panel">
+        <div className="erp-panel-header flex items-center justify-between">
+          <span>Cuentas Corrientes de Clientes</span>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#5c7291]" />
+            <input type="text" placeholder="Buscar por nombre o documento..." value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)} className="erp-input pl-6 w-48" />
+          </div>
         </div>
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 overflow-hidden">
-        <table className="w-full premium-table">
-          <thead>
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Cliente</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Documento</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Saldo</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Estado</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredAccounts.length === 0 ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                <div className="empty-state"><Wallet className="w-10 h-10 text-slate-300 mx-auto mb-2" />No hay cuentas corrientes</div>
-              </td></tr>
-            ) : filteredAccounts.map((account) => (
-              <tr key={account.id} className="hover:bg-blue-50/30">
-                <td className="px-6 py-4">
-                  <div className="font-medium text-slate-900">{account.customer.name}</div>
-                  {account.customer.email && <div className="text-sm text-slate-500">{account.customer.email}</div>}
-                </td>
-                <td className="px-6 py-4 text-slate-600 text-sm">{account.customer.document || '-'}</td>
-                <td className="px-6 py-4">
-                  <span className={`font-semibold ${account.balance > 0 ? 'text-red-600' : account.balance < 0 ? 'text-green-600' : 'text-slate-600'}`}>
-                    {formatCurrency(Math.abs(account.balance))}
-                    <span className="text-xs font-normal ml-1">{account.balance > 0 ? 'Debe' : account.balance < 0 ? 'A favor' : ''}</span>
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    account.status === 'active' ? 'bg-green-100 text-green-700' :
-                    account.status === 'suspended' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    {account.status === 'active' ? 'Activa' : account.status === 'suspended' ? 'Suspendida' : 'Bloqueada'}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <button onClick={() => fetchAccountDetails(account.customerId)}
-                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm font-medium">
-                    <Eye className="w-4 h-4" /> Ver detalle
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="erp-grid-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th className="w-28">Documento</th>
+                <th className="w-36 text-right">Saldo</th>
+                <th className="w-20 text-center">Estado</th>
+                <th className="w-16 text-center">Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredAccounts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-10 text-center text-[#5c7291]">
+                    <Wallet className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    No hay cuentas corrientes
+                  </td>
+                </tr>
+              ) : filteredAccounts.map((account) => (
+                <tr key={account.id} className="cursor-pointer" onClick={() => fetchAccountDetails(account.customerId)}>
+                  <td>
+                    <div className="px-2 py-0.5">
+                      <div className="font-semibold text-[11px]">{account.customer.name}</div>
+                      {account.customer.email && <div className="text-[9px] text-[#5c7291]">{account.customer.email}</div>}
+                    </div>
+                  </td>
+                  <td><span className="cell-text font-mono text-[10px]">{account.customer.document || '-'}</span></td>
+                  <td className="text-right pr-3">
+                    <span className={`font-bold font-mono text-[11px] ${account.balance > 0 ? 'text-red-600' : account.balance < 0 ? 'text-green-700' : 'text-[#5c7291]'}`}>
+                      {formatCurrency(Math.abs(account.balance))}
+                    </span>
+                    {account.balance !== 0 && (
+                      <div className={`text-[9px] font-bold ${account.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                        {account.balance > 0 ? '▲ DEBE' : '▼ A FAVOR'}
+                      </div>
+                    )}
+                  </td>
+                  <td className="text-center">
+                    <span className={`text-[10px] font-bold px-1 ${
+                      account.status === 'active' ? 'bg-green-100 text-green-700' :
+                      account.status === 'suspended' ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {account.status === 'active' ? 'ACTIVA' : account.status === 'suspended' ? 'SUSP.' : 'BLOQ.'}
+                    </span>
+                  </td>
+                  <td className="text-center">
+                    <button onClick={(e) => { e.stopPropagation(); fetchAccountDetails(account.customerId); }}
+                      className="erp-toolbtn text-[10px] flex items-center gap-1 mx-auto px-1.5 py-0.5">
+                      <Eye className="w-3 h-3" /> Ver
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filteredAccounts.length > 0 && (
+          <div className="erp-grid-footer">
+            {filteredAccounts.length} cuenta(s) · Deuda total: {formatCurrency(stats.totalDebt)}
+          </div>
+        )}
       </div>
 
       {/* Detail Modal */}

@@ -175,6 +175,8 @@ model Product {
   categoryId         String?
   category           Category?           @relation(fields: [categoryId], references: [id])
   image              String?
+  brand              String?
+  unit               String?             @default("unidad")
   active             Boolean             @default(true)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt

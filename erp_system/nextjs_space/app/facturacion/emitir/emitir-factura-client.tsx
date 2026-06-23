@@ -159,6 +159,16 @@ export function EmitirFacturaClient() {
     { description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: 21, total: 0 }
   ]);
 
+  // Initial payment / anticipo / seña
+  const [initialPaymentEnabled, setInitialPaymentEnabled] = useState(false);
+  const [initialPaymentAmount, setInitialPaymentAmount] = useState('');
+  const [initialPaymentMethod, setInitialPaymentMethod] = useState('cash');
+  const [initialPaymentRef, setInitialPaymentRef] = useState('');
+
+  // AFIP lookup source feedback
+  const [documentSource, setDocumentSource] = useState<'afip' | 'local' | 'none' | null>(null);
+  const [afipStatus, setAfipStatus] = useState<string>('');
+
   // Result and Print Preview
   const [createdInvoice, setCreatedInvoice] = useState<any>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -378,7 +388,8 @@ export function EmitirFacturaClient() {
     try {
       const res = await fetch('/api/products');
       const data = await res.json();
-      setProducts(data.products || data || []);
+      const list = data.products ?? data;
+      setProducts(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
@@ -388,7 +399,8 @@ export function EmitirFacturaClient() {
     try {
       const res = await fetch('/api/customers');
       const data = await res.json();
-      setCustomers(data.customers || data || []);
+      const list = data.customers ?? data;
+      setCustomers(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -428,17 +440,17 @@ export function EmitirFacturaClient() {
         setCustomerAddress(data.customer.address || '');
         setCustomerCity(data.customer.city || '');
         setCustomerTaxCondition(data.customer.taxCondition || 'consumidor_final');
+        setDocumentSource(data.source as 'afip' | 'local');
         
         if (data.source === 'afip') {
+          setAfipStatus(data.customer.estadoClave ? `Estado CUIT: ${data.customer.estadoClave}` : 'Datos obtenidos de AFIP/ARCA');
           const autoMsg = data.autoCreated 
-            ? '✅ Cliente importado desde AFIP y guardado automáticamente' 
-            : '✅ Datos obtenidos desde AFIP';
+            ? 'Cliente importado desde AFIP y guardado automáticamente' 
+            : 'Datos obtenidos desde AFIP/ARCA';
           toast.success(autoMsg);
-          // Refresh customers list if auto-created
-          if (data.autoCreated) {
-            fetchCustomers();
-          }
+          if (data.autoCreated) fetchCustomers();
         } else {
+          setAfipStatus('Encontrado en base local');
           toast.success(`Cliente encontrado: ${data.customer.name}`);
         }
       } else if (data.suggestion) {
@@ -450,8 +462,12 @@ export function EmitirFacturaClient() {
         setCustomerName('');
         setCustomerAddress('');
         setCustomerCity('');
+        setDocumentSource('none');
+        setAfipStatus('');
         toast(data.message || 'No se encontraron datos. Complete manualmente.', { icon: 'ℹ️' });
       } else if (data.error) {
+        setDocumentSource('none');
+        setAfipStatus('');
         toast.error(data.error);
       }
     } catch (error) {
@@ -792,6 +808,28 @@ export function EmitirFacturaClient() {
             subtotal: item.quantity * item.unitPrice * (1 - item.discount / 100)
           }))
         });
+        // ── Registrar anticipo / pago inicial si corresponde ──
+        const invId = data.invoice?.id;
+        const initialAmt = parseFloat(initialPaymentAmount);
+        if (invId && initialPaymentEnabled && initialAmt > 0) {
+          try {
+            await fetch(`/api/invoices/${invId}/payments`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                amount: Math.min(initialAmt, totals.total),
+                paymentMethod: initialPaymentMethod,
+                reference: initialPaymentRef || undefined,
+                notes: `Anticipo/seña al emitir ${selectedDocType?.name || 'comprobante'}`,
+                createReceipt: true,
+              }),
+            });
+            toast.success(`Anticipo de ${formatCurrency(initialAmt)} registrado`);
+          } catch (err) {
+            console.warn('No se pudo registrar el anticipo:', err);
+          }
+        }
+
         setShowSuccess(true);
         toast.success(afipSuccess ? 'Comprobante emitido con CAE de AFIP' : 'Comprobante guardado (sin CAE)');
         resetForm();
@@ -821,6 +859,12 @@ export function EmitirFacturaClient() {
     setPaymentCondition('Contado');
     setObservations('');
     setItems([{ description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: 21, total: 0 }]);
+    setInitialPaymentEnabled(false);
+    setInitialPaymentAmount('');
+    setInitialPaymentMethod('cash');
+    setInitialPaymentRef('');
+    setDocumentSource(null);
+    setAfipStatus('');
   };
 
   const formatCurrency = (amount: number) => {
@@ -830,12 +874,12 @@ export function EmitirFacturaClient() {
   const totals = calculateTotals();
   const selectedDocType = DOCUMENT_TYPES.find(d => d.code === documentCode);
 
-  const filteredProducts = products.filter(p => 
+  const filteredProducts = (Array.isArray(products) ? products : []).filter(p =>
     p.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
     p.sku.toLowerCase().includes(searchProduct.toLowerCase())
   ).slice(0, 5);
 
-  const filteredCustomers = customers.filter(c => 
+  const filteredCustomers = (Array.isArray(customers) ? customers : []).filter(c =>
     c.name.toLowerCase().includes(searchCustomer.toLowerCase()) ||
     (c.document && c.document.includes(searchCustomer))
   ).slice(0, 5);
@@ -931,62 +975,43 @@ export function EmitirFacturaClient() {
 
   return (
     <>
-      {/* Success Modal */}
+      {/* ── Modal de éxito ── */}
       {showSuccess && createdInvoice && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-10 h-10 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
-                {createdInvoice.afipSuccess ? '✅ Comprobante Autorizado por AFIP' : '⚠️ Comprobante Guardado'}
-              </h3>
-              <p className="text-slate-600 mb-4">
-                {selectedDocType?.name || 'Comprobante'} {createdInvoice.afipSuccess ? 'con CAE de AFIP' : 'sin CAE (pendiente)'}
-              </p>
-              <div className="bg-slate-50 rounded-lg p-4 mb-4 text-left">
-                <div className="flex justify-between mb-2">
-                  <span className="text-slate-600">Número:</span>
-                  <span className="font-mono font-bold">{createdInvoice.comprobanteNumero ? `${String(businessConfig?.defaultPOS || 1).padStart(4, '0')}-${String(createdInvoice.comprobanteNumero).padStart(8, '0')}` : createdInvoice.invoiceNumber}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-slate-600">Tipo:</span>
-                  <span className="font-medium">{selectedDocType?.name}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-slate-600">Cliente:</span>
-                  <span className="font-medium">{createdInvoice.customerName}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-slate-600">CAE:</span>
-                  <span className={`font-mono text-sm ${createdInvoice.afipSuccess ? 'text-green-600 font-bold' : 'text-yellow-600'}`}>
-                    {createdInvoice.cae}
-                  </span>
-                </div>
-                {createdInvoice.caeExpiration && createdInvoice.afipSuccess && (
-                  <div className="flex justify-between mb-2">
-                    <span className="text-slate-600">Vto. CAE:</span>
-                    <span className="text-sm">{new Date(createdInvoice.caeExpiration).toLocaleDateString('es-AR')}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Total:</span>
-                  <span className="font-bold text-lg">{formatCurrency(createdInvoice.total)}</span>
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-[#9bb3cc] shadow-2xl max-w-md w-full">
+            {/* Header estilo ERP */}
+            <div className="bg-[#1e4d8c] text-white px-4 py-2 flex items-center justify-between">
+              <span className="text-sm font-bold">
+                {createdInvoice.afipSuccess ? 'Comprobante Autorizado por AFIP' : 'Comprobante Guardado'}
+              </span>
+              <button onClick={() => setShowSuccess(false)} className="text-white/70 hover:text-white text-lg leading-none">×</button>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <CheckCircle className={`w-8 h-8 ${createdInvoice.afipSuccess ? 'text-green-600' : 'text-yellow-500'}`} />
+                <div>
+                  <p className="font-bold text-[#1a3a5c]">{selectedDocType?.name || 'Comprobante'}</p>
+                  <p className="text-xs text-[#5c7291]">{createdInvoice.afipSuccess ? 'CAE autorizado por AFIP/ARCA' : 'Sin CAE — sin valor fiscal'}</p>
                 </div>
               </div>
-              {createdInvoice.afipSuccess && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-xs text-green-700">
-                  ✅ Comprobante autorizado por AFIP/ARCA. El CAE es válido y el comprobante tiene valor fiscal.
-                </div>
-              )}
-              {!createdInvoice.afipSuccess && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-xs text-yellow-700">
-                  ⚠️ No se pudo obtener CAE de AFIP. El comprobante fue guardado pero no tiene valor fiscal hasta obtener el CAE.
-                </div>
-              )}
+              <table className="w-full text-xs border-collapse mb-3">
+                <tbody>
+                  {[
+                    ['Número', createdInvoice.comprobanteNumero ? `${String(businessConfig?.defaultPOS || 1).padStart(4, '0')}-${String(createdInvoice.comprobanteNumero).padStart(8, '0')}` : createdInvoice.invoiceNumber],
+                    ['Tipo', selectedDocType?.name],
+                    ['Cliente', createdInvoice.customerName],
+                    ['CAE', createdInvoice.cae],
+                    ['Total', formatCurrency(createdInvoice.total)],
+                  ].map(([label, val]) => (
+                    <tr key={label} className="border-b border-[#dde3f4]">
+                      <td className="py-1 pr-3 text-[#5c7291] font-semibold w-24">{label}</td>
+                      <td className="py-1 font-mono font-bold text-[#1a3a5c]">{val}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               {createdInvoice.id && createdInvoice.total > 0 && (
-                <div className="mb-4 text-left">
+                <div className="mb-3">
                   <MpInvoicePaymentPanel
                     invoiceId={createdInvoice.id}
                     invoiceNumber={createdInvoice.invoiceNumber}
@@ -997,18 +1022,11 @@ export function EmitirFacturaClient() {
                   />
                 </div>
               )}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowPrintPreview(true)}
-                  className="flex-1 px-4 py-2 border border-slate-100/60 rounded-xl hover:bg-slate-50 flex items-center justify-center gap-2"
-                >
-                  <Printer className="w-4 h-4" />
-                  Ver/Imprimir
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setShowPrintPreview(true)} className="erp-btn-secondary flex items-center gap-1 text-xs">
+                  <Printer className="w-3.5 h-3.5" /> Imprimir
                 </button>
-                <button
-                  onClick={() => setShowSuccess(false)}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-sm shadow-blue-500/20"
-                >
+                <button onClick={() => setShowSuccess(false)} className="erp-btn-primary text-xs">
                   Cerrar
                 </button>
               </div>
@@ -1017,7 +1035,7 @@ export function EmitirFacturaClient() {
         </div>
       )}
 
-      {/* Print Preview Modal */}
+      {/* ── Print Preview ── */}
       {showPrintPreview && createdInvoice && businessConfig && getDocumentDataForPrint() && (
         <PrintDocument
           company={getCompanyForPrint()}
@@ -1028,336 +1046,465 @@ export function EmitirFacturaClient() {
       )}
 
       <ErpDocumentShell
-        title={`Emisión de comprobantes — ${selectedDocType?.name || 'Factura B'}`}
-        subtitle="Comprobantes fiscales con CAE ARCA"
+        title="Factura Manual de Venta"
+        subtitle={selectedDocType?.name || 'Comprobante fiscal ARCA'}
         module="FACTURACIÓN"
-        statusText={loading ? 'Guardando comprobante…' : `Items: ${items.filter(i => i.description).length}`}
+        statusText={
+          loading
+            ? 'Procesando comprobante…'
+            : `Items: ${items.filter(i => i.description).length} · Fila: ${items.length} · Disponibles para impresión: ${items.filter(i => i.description).length}`
+        }
         onNew={resetForm}
         onSave={handleSubmit}
         onCancel={resetForm}
         onPrint={() => createdInvoice && setShowPrintPreview(true)}
         saveLoading={loading}
-        saveLabel="Emitir comprobante"
+        saveLabel="Aceptar"
         header={
-          <>
-          <DocumentEmissionTabs />
-          <div className="grid lg:grid-cols-2 gap-x-6 gap-y-0">
-            <ErpFieldRow label="Cliente">
-              <div className="flex gap-1">
+          /* ── Header Dragonfish: dos columnas ── */
+          <div className="grid grid-cols-[1fr_auto] gap-6 items-start">
+
+            {/* ── Columna izquierda: datos del receptor ── */}
+            <div>
+              <ErpFieldRow label="CUIT / DNI">
+                <div className="relative flex gap-1">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={customerDocument}
+                      onChange={(e) => handleDocumentChange(e.target.value)}
+                      onKeyDown={handleDocumentKeyDown}
+                      onBlur={handleDocumentBlur}
+                      placeholder="CUIT / DNI"
+                      className={`erp-input w-[120px] font-mono ${
+                        documentSource === 'afip' ? 'border-green-500 bg-green-50' :
+                        documentSource === 'local' ? 'border-blue-400 bg-blue-50' :
+                        documentSource === 'none' ? 'border-amber-400' : ''
+                      }`}
+                    />
+                    {documentSource === 'afip' && (
+                      <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[8px] font-bold px-1 rounded leading-tight">AFIP</span>
+                    )}
+                    {documentSource === 'local' && (
+                      <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[8px] font-bold px-1 rounded leading-tight">LOCAL</span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Razón social / Nombre"
+                    className="erp-input flex-1"
+                  />
+                  <button type="button" onClick={() => searchByDocument(customerDocument)} className="erp-toolbtn px-2" title="Buscar padrón AFIP/ARCA — Enter o Tab dispara la búsqueda">
+                    {documentSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" /> : <Search className="w-3.5 h-3.5" />}
+                  </button>
+                  {/* Dropdown cliente */}
+                  {searchCustomer && filteredCustomers.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-0.5 bg-white border border-[#9bb3cc] shadow-lg z-20 max-h-40 overflow-auto">
+                      {filteredCustomers.map((c) => (
+                        <button key={c.id} type="button" onClick={() => { selectCustomer(c); setSearchCustomer(''); }} className="w-full px-3 py-1.5 text-left text-xs hover:bg-[#dde3f4] flex justify-between">
+                          <span>{c.name}</span><span className="text-[#5c7291]">{c.document}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {afipStatus && (
+                  <p className={`text-[10px] mt-0.5 ${documentSource === 'afip' ? 'text-green-700' : 'text-blue-700'}`}>
+                    {documentSource === 'afip' ? '✓ AFIP/ARCA: ' : '✓ '}{afipStatus}
+                  </p>
+                )}
+              </ErpFieldRow>
+              <ErpFieldRow label="Domicilio">
                 <input
                   type="text"
-                  value={customerDocument}
-                  onChange={(e) => handleDocumentChange(e.target.value)}
-                  onKeyDown={handleDocumentKeyDown}
-                  onBlur={handleDocumentBlur}
-                  placeholder="CUIT/DNI"
-                  className="erp-input w-28 font-mono"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  placeholder="Dirección fiscal"
+                  className="erp-input w-full"
                 />
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nombre o razón social"
-                  className="erp-input flex-1"
-                />
-                <button type="button" onClick={() => searchByDocument(customerDocument)} className="erp-toolbtn px-2" title="Buscar padrón">
-                  <Search className="w-3.5 h-3.5" />
-                </button>
+              </ErpFieldRow>
+              <ErpFieldRow label="Condición IVA">
+                <select value={customerTaxCondition} onChange={(e) => setCustomerTaxCondition(e.target.value)} className="erp-input w-full">
+                  {TAX_CONDITIONS.map((tc) => (
+                    <option key={tc.value} value={tc.value}>{tc.label}</option>
+                  ))}
+                </select>
+              </ErpFieldRow>
+              <ErpFieldRow label="Cond. de venta">
+                <select value={paymentCondition} onChange={(e) => {
+                  setPaymentCondition(e.target.value);
+                  if (e.target.value === 'Cuenta Corriente' || e.target.value === 'Anticipo de Obra') {
+                    setInitialPaymentEnabled(true);
+                  } else if (e.target.value === 'Contado') {
+                    setInitialPaymentEnabled(true);
+                    setInitialPaymentAmount(String(totals.total));
+                  }
+                }} className="erp-input w-full">
+                  <option value="Contado">Contado</option>
+                  <option value="Cuenta Corriente">Cuenta Corriente</option>
+                  <option value="Anticipo de Obra">Anticipo de Obra / Constructora</option>
+                  <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                  <option value="Transferencia">Transferencia Bancaria</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Sin cargo">Sin cargo / Interno</option>
+                </select>
+              </ErpFieldRow>
+              <ErpFieldRow label="Concepto">
+                <select value={concept} onChange={(e) => setConcept(Number(e.target.value))} className="erp-input w-full">
+                  {CONCEPTS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </ErpFieldRow>
+            </div>
+
+            {/* ── Columna derecha: tipo de comprobante + número + fecha ── */}
+            <div className="flex gap-3 items-start">
+              {/* Cuadro de letra — estilo Dragonfish */}
+              <div className="flex flex-col items-center gap-0.5 shrink-0">
+                <div className="w-16 h-14 border-2 border-[#2563ad] bg-white flex items-center justify-center text-[36px] font-black text-[#2563ad] select-none leading-none">
+                  {(selectedDocType?.letter || 'B').substring(0, 1)}
+                </div>
+                <span className="text-[9px] font-bold uppercase text-[#2563ad] tracking-wider">Tipo</span>
               </div>
-            </ErpFieldRow>
-            <ErpFieldRow label="Condición IVA">
-              <select value={customerTaxCondition} onChange={(e) => setCustomerTaxCondition(e.target.value)} className="erp-input w-full">
-                {TAX_CONDITIONS.map((tc) => (
-                  <option key={tc.value} value={tc.value}>{tc.label}</option>
-                ))}
-              </select>
-            </ErpFieldRow>
-            <ErpFieldRow label="Tipo comprobante">
-              <select value={documentCode} onChange={(e) => setDocumentCode(e.target.value)} className="erp-input w-full">
-                {DOCUMENT_TYPES.filter((d) => d.category === 'standard' || d.category === 'fce').map((doc) => (
-                  <option key={doc.code} value={doc.code}>{doc.code} — {doc.name}</option>
-                ))}
-              </select>
-            </ErpFieldRow>
-            <ErpFieldRow label="Concepto">
-              <select value={concept} onChange={(e) => setConcept(Number(e.target.value))} className="erp-input w-full">
-                {CONCEPTS.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </ErpFieldRow>
-            <ErpFieldRow label="Condición venta">
-              <select value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)} className="erp-input w-full">
-                <option value="Contado">Contado</option>
-                <option value="Cuenta Corriente">Cuenta Corriente</option>
-                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Cheque">Cheque</option>
-              </select>
-            </ErpFieldRow>
-            <ErpFieldRow label="Punto de venta">
-              <input type="text" readOnly value={String(businessConfig?.defaultPOS || 1).padStart(4, '0')} className="erp-input w-24 bg-white/70" />
-            </ErpFieldRow>
-            <ErpFieldRow label="Fecha">
-              <input type="date" value={new Date().toISOString().slice(0, 10)} readOnly className="erp-input w-36 bg-white/70" />
-            </ErpFieldRow>
-            <ErpFieldRow label="Vencimiento">
-              <input type="date" value={paymentDueDate} onChange={(e) => setPaymentDueDate(e.target.value)} className="erp-input w-36" />
-            </ErpFieldRow>
+              <div className="min-w-[260px]">
+                <ErpFieldRow label="Tipo comprobante">
+                  <select value={documentCode} onChange={(e) => setDocumentCode(e.target.value)} className="erp-input w-full text-xs">
+                    {DOCUMENT_TYPES.filter((d) => d.category === 'standard' || d.category === 'fce').map((doc) => (
+                      <option key={doc.code} value={doc.code}>{doc.code} — {doc.name}</option>
+                    ))}
+                  </select>
+                </ErpFieldRow>
+                <ErpFieldRow label="Número">
+                  <div className="flex items-center gap-1 font-mono text-xs">
+                    <span className="border border-[#b8c4dc] bg-white/70 px-2 py-0.5 text-[#1a3a5c] font-bold">
+                      {String(businessConfig?.defaultPOS || 1).padStart(4, '0')}
+                    </span>
+                    <span className="text-[#5c7291]">-</span>
+                    <input type="text" readOnly value="(automático)" className="erp-input flex-1 bg-white/70 font-mono text-xs" />
+                  </div>
+                </ErpFieldRow>
+                <ErpFieldRow label="Fecha">
+                  <input type="date" value={new Date().toISOString().slice(0, 10)} readOnly className="erp-input w-36 bg-white/70" />
+                </ErpFieldRow>
+                <ErpFieldRow label="Vencimiento">
+                  <input type="date" value={paymentDueDate} onChange={(e) => setPaymentDueDate(e.target.value)} className="erp-input w-36" />
+                </ErpFieldRow>
+              </div>
+            </div>
           </div>
-          </>
         }
         observations={
           <textarea
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
-            className="erp-input w-full h-16 resize-none"
-            placeholder="Notas del comprobante…"
+            className="erp-input w-full h-12 resize-none"
+            placeholder="Observaciones del comprobante…"
           />
         }
-        footerExtra={
-          <div className="flex items-center gap-6 text-sm mr-4">
-            <span>Subtotal: <strong>{formatCurrency(totals.subtotal)}</strong></span>
-            <span>IVA: <strong>{formatCurrency(totals.tax)}</strong></span>
-            <span className="text-base font-bold text-[#1e4d8c]">Total: {formatCurrency(totals.total)}</span>
-          </div>
-        }
       >
+        {/* ── Alertas ── */}
         {(selectedDocType as any)?.isRetention && (
-          <div className="mb-2 flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-3 py-2 text-xs">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="mb-1.5 flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 text-xs">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             Operación sujeta a retención (COD. {selectedDocType?.code})
           </div>
         )}
         {selectedDocType?.letter === 'A' && !customerDocument && (
-          <div className="mb-2 flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 text-xs">
-            <AlertCircle className="w-4 h-4" />
+          <div className="mb-1.5 flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs">
+            <AlertCircle className="w-3.5 h-3.5" />
             Las facturas tipo A requieren CUIT del cliente
           </div>
         )}
 
-      {/* Comprobante Asociado — appears for NC/ND */}
-      {isNCorND && (
-        <div className="bg-white rounded-2xl shadow-sm border-2 border-purple-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
-            <Link2 className="w-5 h-5 text-purple-600" />
-            Comprobante Asociado
-          </h2>
-          <p className="text-sm text-slate-500 mb-4">
-            Seleccioná la factura original a la que se aplicará esta {isNC ? 'Nota de Crédito' : 'Nota de Débito'}. Se cargarán automáticamente todos los datos.
-          </p>
-
-          {linkedInvoiceId && refFactura ? (
-            <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <CheckCircle className="w-5 h-5 text-purple-600 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="font-semibold text-purple-800">Factura {refFactura}</p>
-                <p className="text-sm text-purple-600">{customerName} — ${availableFacturas.find(f => f.id === linkedInvoiceId)?.total?.toLocaleString('es-AR', { minimumFractionDigits: 2 }) || ''}</p>
-              </div>
-              <button
-                onClick={() => {
-                  setLinkedInvoiceId('');
-                  setRefFactura('');
-                  setShowFacturaSelector(true);
-                }}
-                className="px-3 py-1.5 text-sm bg-white text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-300"
-              >
-                Cambiar
-              </button>
+        {/* ── Comprobante asociado (NC / ND) ── */}
+        {isNCorND && (
+          <div className="mb-2 border border-[#b8c4dc] bg-[#f4f6fc]">
+            <div className="bg-[#9baac8] text-white px-3 py-1 text-xs font-bold uppercase flex items-center gap-2">
+              <Link2 className="w-3.5 h-3.5" />
+              Comprobante Asociado — {isNC ? 'Nota de Crédito' : 'Nota de Débito'}
             </div>
-          ) : (
-            <div className="relative">
-              <div className="flex gap-2 mb-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por número, cliente o CUIT..."
-                    value={facturaSearch}
-                    onChange={(e) => { setFacturaSearch(e.target.value); setShowFacturaSelector(true); }}
-                    onFocus={() => setShowFacturaSelector(true)}
-                    className="w-full pl-10 pr-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
+            <div className="p-3">
+              {linkedInvoiceId && refFactura ? (
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                  <span className="text-xs font-bold text-[#1a3a5c]">Factura {refFactura}</span>
+                  <span className="text-xs text-[#5c7291]">{customerName}</span>
+                  <button onClick={() => { setLinkedInvoiceId(''); setRefFactura(''); setShowFacturaSelector(true); }} className="ml-auto erp-btn-secondary text-xs py-0.5">Cambiar</button>
                 </div>
-                {loadingFacturas && <Loader2 className="w-5 h-5 text-purple-500 animate-spin self-center" />}
-              </div>
-
-              {(showFacturaSelector || !linkedInvoiceId) && availableFacturas.length > 0 && (
-                <div className="border border-slate-100/60 rounded-xl max-h-64 overflow-y-auto bg-white shadow-lg">
-                  {availableFacturas
-                    .filter(f => {
-                      if (!facturaSearch) return true;
-                      const q = facturaSearch.toLowerCase();
-                      return (
-                        f.invoiceNumber?.toLowerCase().includes(q) ||
-                        f.customerName?.toLowerCase().includes(q) ||
-                        f.customerDocument?.toLowerCase().includes(q)
-                      );
-                    })
-                    .map((factura: any) => (
-                      <button
-                        key={factura.id}
-                        onClick={() => selectLinkedFactura(factura)}
-                        className="w-full text-left px-4 py-3 hover:bg-purple-50 border-b border-slate-100 last:border-0 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-mono font-semibold text-slate-900">{factura.invoiceNumber}</span>
-                            <span className="ml-2 text-sm text-slate-500">{factura.customerName}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-semibold text-slate-900">
-                              ${factura.total?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                            </span>
-                            <div className="text-xs text-slate-400">
-                              {new Date(factura.createdAt).toLocaleDateString('es-AR')}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  {availableFacturas.filter(f => {
-                    if (!facturaSearch) return true;
-                    const q = facturaSearch.toLowerCase();
-                    return f.invoiceNumber?.toLowerCase().includes(q) || f.customerName?.toLowerCase().includes(q) || f.customerDocument?.toLowerCase().includes(q);
-                  }).length === 0 && (
-                    <p className="px-4 py-3 text-sm text-slate-500 text-center">No se encontraron facturas</p>
+              ) : (
+                <div className="relative">
+                  <div className="flex gap-2 mb-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar factura por número, cliente o CUIT…"
+                        value={facturaSearch}
+                        onChange={(e) => { setFacturaSearch(e.target.value); setShowFacturaSelector(true); }}
+                        onFocus={() => setShowFacturaSelector(true)}
+                        className="erp-input w-full pl-7"
+                      />
+                    </div>
+                    {loadingFacturas && <Loader2 className="w-4 h-4 text-[#2563ad] animate-spin self-center" />}
+                  </div>
+                  {(showFacturaSelector || !linkedInvoiceId) && availableFacturas.length > 0 && (
+                    <div className="border border-[#9bb3cc] max-h-48 overflow-y-auto bg-white shadow">
+                      {availableFacturas.filter(f => {
+                        if (!facturaSearch) return true;
+                        const q = facturaSearch.toLowerCase();
+                        return f.invoiceNumber?.toLowerCase().includes(q) || f.customerName?.toLowerCase().includes(q) || f.customerDocument?.toLowerCase().includes(q);
+                      }).map((factura: any) => (
+                        <button key={factura.id} onClick={() => selectLinkedFactura(factura)} className="w-full text-left px-3 py-1.5 hover:bg-[#dde3f4] border-b border-[#dde3f4] last:border-0 text-xs flex justify-between">
+                          <span><span className="font-mono font-bold text-[#1a3a5c]">{factura.invoiceNumber}</span> <span className="text-[#5c7291]">{factura.customerName}</span></span>
+                          <span className="font-bold">${factura.total?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!loadingFacturas && availableFacturas.length === 0 && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1.5 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> No hay facturas disponibles para asociar.
+                    </p>
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
 
-              {!loadingFacturas && availableFacturas.length === 0 && (
-                <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  No hay facturas disponibles para asociar. Primero emití una factura con CAE.
-                </p>
+        {/* ── Grilla de artículos + Panel de totales (layout Dragonfish) ── */}
+        <div className="flex border border-[#9bb3cc]">
+          {/* Columna izquierda: buscador + tabla */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {/* Buscador sobre la grilla */}
+            <div className="relative border-b border-[#9bb3cc]">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9bb3cc]" />
+              <input
+                type="text"
+                placeholder="Buscar artículo por nombre o código…"
+                value={searchProduct}
+                onChange={(e) => { setSearchProduct(e.target.value); setSearchCustomer(e.target.value); }}
+                className="w-full pl-7 pr-3 py-1 text-xs border-0 focus:outline-none focus:bg-[#f0f6ff] bg-[#f8fafc]"
+              />
+              {searchProduct && filteredProducts.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-[#9bb3cc] shadow-lg z-20 max-h-36 overflow-auto">
+                  {filteredProducts.map((product) => (
+                    <button key={product.id} type="button" onClick={() => addProductToItems(product)} className="w-full px-3 py-1.5 text-left text-xs hover:bg-[#dde3f4] flex justify-between">
+                      <span>{product.name} <span className="text-[#9baac8]">[{product.sku}]</span></span>
+                      <span className="font-bold">{formatCurrency(product.price)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {searchCustomer && filteredCustomers.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-[#9bb3cc] shadow-lg z-20 max-h-36 overflow-auto">
+                  {filteredCustomers.map((c) => (
+                    <button key={c.id} type="button" onClick={() => { selectCustomer(c); setSearchCustomer(''); setSearchProduct(''); }} className="w-full px-3 py-1.5 text-left text-xs hover:bg-[#dde3f4] flex justify-between">
+                      <span>{c.name}</span><span className="text-[#5c7291]">{c.document}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tabla de ítems */}
+            <div className="overflow-x-auto flex-1">
+              <table className="erp-grid-table w-full min-w-[580px]">
+                <thead>
+                  <tr>
+                    <th className="w-8 text-center">#</th>
+                    <th>Descripción / Artículo</th>
+                    <th className="w-16 text-center">Cant.</th>
+                    <th className="w-24 text-right">P. Unit.</th>
+                    <th className="w-14 text-center">%Desc.</th>
+                    <th className="w-20 text-center">IVA</th>
+                    <th className="w-28 text-right">Monto</th>
+                    <th className="w-6"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, index) => (
+                    <tr key={index}>
+                      <td className="text-center text-[10px] text-[#5c7291]">
+                        <span className="cell-text">{String(index + 1).padStart(3, '0')}</span>
+                      </td>
+                      <td>
+                        <input type="text" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} placeholder="Descripción del artículo" className="w-full h-6 px-2 text-xs border-0 bg-transparent focus:bg-white focus:outline focus:outline-1 focus:outline-[#2563ad]" />
+                      </td>
+                      <td>
+                        <input type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))} min="1" className="w-full h-6 px-1 text-xs text-center border-0 bg-transparent focus:bg-white focus:outline focus:outline-1 focus:outline-[#2563ad]" />
+                      </td>
+                      <td>
+                        <input type="number" value={item.unitPrice} onChange={(e) => updateItem(index, 'unitPrice', Number(e.target.value))} min="0" step="0.01" className="w-full h-6 px-1 text-xs text-right border-0 bg-transparent focus:bg-white focus:outline focus:outline-1 focus:outline-[#2563ad]" />
+                      </td>
+                      <td>
+                        <input type="number" value={item.discount} onChange={(e) => updateItem(index, 'discount', Number(e.target.value))} min="0" max="100" className="w-full h-6 px-1 text-xs text-center border-0 bg-transparent focus:bg-white focus:outline focus:outline-1 focus:outline-[#2563ad]" />
+                      </td>
+                      <td>
+                        <select value={item.taxRate} onChange={(e) => updateItem(index, 'taxRate', Number(e.target.value))} className="w-full h-6 text-xs border-0 bg-transparent focus:bg-white px-1">
+                          <option value={0}>0%</option>
+                          <option value={2.5}>2,5%</option>
+                          <option value={5}>5%</option>
+                          <option value={10.5}>10,5%</option>
+                          <option value={21}>21%</option>
+                          <option value={27}>27%</option>
+                        </select>
+                      </td>
+                      <td className="text-right pr-2">
+                        <span className="cell-text text-right font-semibold">{formatCurrency(item.total)}</span>
+                      </td>
+                      <td className="text-center">
+                        <button type="button" onClick={() => removeItem(index)} className="text-red-400 hover:text-red-600 px-0.5">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Filas vacías al estilo Dragonfish */}
+                  {Array.from({ length: Math.max(0, 7 - items.length) }).map((_, i) => (
+                    <tr key={`empty-${i}`} style={{ height: '24px' }}>
+                      {[0,1,2,3,4,5,6,7].map(c => <td key={c}>&nbsp;</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pie de grilla */}
+            <div className="erp-grid-footer flex items-center justify-between">
+              <span>Items: {items.filter(i => i.description).length} · Fila: {items.length} · Disponibles para impresión: {items.filter(i => i.description).length}</span>
+              <button type="button" onClick={addItem} className="erp-btn-secondary text-[10px] py-0 px-2 flex items-center gap-1 h-5">
+                <Plus className="w-3 h-3" /> Agregar línea
+              </button>
+            </div>
+          </div>
+
+          {/* ── Panel de totales derecha (estilo Dragonfish) ── */}
+          <div className="erp-totals-panel shrink-0 border-l border-[#9bb3cc] flex flex-col" style={{ minWidth: '230px' }}>
+            <div className="bg-[#9baac8] text-white text-[10px] font-bold uppercase px-3 py-1 tracking-wider">Ajustes</div>
+            <div className="totals-row"><span className="totals-label">Ajustes por redondeo</span><span className="totals-value text-[11px]">0,00</span></div>
+            <div className="totals-row"><span className="totals-label">% Descuento</span><span className="totals-value text-[11px]">—</span></div>
+            <div className="totals-row"><span className="totals-label">Monto de descuento</span><span className="totals-value text-[11px]">0,00</span></div>
+            <div className="totals-row"><span className="totals-label">% Recargo</span><span className="totals-value text-[11px]">—</span></div>
+            <div className="totals-row"><span className="totals-label">Monto de recargo</span><span className="totals-value text-[11px]">0,00</span></div>
+            <div className="totals-row"><span className="totals-label">Descuento valores</span><span className="totals-value text-[11px]">0,00</span></div>
+            <div className="totals-row"><span className="totals-label">Recargo valores</span><span className="totals-value text-[11px]">0,00</span></div>
+            <div className="totals-row border-t-2 border-[#9baac8]">
+              <span className="totals-label font-bold text-[#1a2a4c]">Subtotal Neto</span>
+              <span className="totals-value font-bold">{totals.subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="totals-row">
+              <span className="totals-label">I.V.A.</span>
+              <span className="totals-value">{totals.tax.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div className="totals-row">
+              <span className="totals-label">Impuestos</span>
+              <span className="totals-value">0,00</span>
+            </div>
+            {/* Total grande — la firma visual de Dragonfish */}
+            <div className="mt-auto">
+              <div className="totals-total-row flex-col items-end gap-0 px-3 py-3">
+                <span className="text-[13px] font-bold text-white/80 self-start">Total</span>
+                <span className="text-[28px] font-black font-mono text-white leading-tight">
+                  $ {totals.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* ── Panel: Anticipo / Cobro Inicial ── */}
+        <div className="border border-[#b8c4dc] bg-[#f4f6fc] mt-1.5">
+          <div className="bg-[#9baac8] text-white px-3 py-1 text-[10px] font-bold uppercase flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Calculator className="w-3 h-3" />
+              Condición de Cobro / Anticipo
+            </span>
+            <label className="flex items-center gap-1.5 cursor-pointer font-normal normal-case text-[11px]">
+              <input
+                type="checkbox"
+                checked={initialPaymentEnabled}
+                onChange={(e) => {
+                  setInitialPaymentEnabled(e.target.checked);
+                  if (e.target.checked && !initialPaymentAmount) {
+                    setInitialPaymentAmount(totals.total > 0 ? String(totals.total.toFixed(2)) : '');
+                  }
+                }}
+                className="w-3.5 h-3.5"
+              />
+              Registrar cobro al emitir
+            </label>
+          </div>
+
+          {initialPaymentEnabled ? (
+            <div className="p-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-[#4a5a8c] uppercase mb-0.5">Monto a cobrar</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={totals.total}
+                  value={initialPaymentAmount}
+                  onChange={(e) => setInitialPaymentAmount(e.target.value)}
+                  placeholder={totals.total > 0 ? totals.total.toFixed(2) : '0,00'}
+                  className="erp-input w-full font-mono font-bold"
+                />
+                {totals.total > 0 && parseFloat(initialPaymentAmount || '0') < totals.total && (
+                  <p className="text-[9px] text-amber-600 mt-0.5">
+                    Saldo pendiente: {formatCurrency(totals.total - parseFloat(initialPaymentAmount || '0'))}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#4a5a8c] uppercase mb-0.5">Forma de pago</label>
+                <select value={initialPaymentMethod} onChange={(e) => setInitialPaymentMethod(e.target.value)} className="erp-input w-full">
+                  <option value="cash">Efectivo</option>
+                  <option value="transfer">Transferencia</option>
+                  <option value="card">Tarjeta</option>
+                  <option value="check">Cheque</option>
+                  <option value="mp">Mercado Pago</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#4a5a8c] uppercase mb-0.5">Referencia / Comprobante</label>
+                <input
+                  type="text"
+                  value={initialPaymentRef}
+                  onChange={(e) => setInitialPaymentRef(e.target.value)}
+                  placeholder="Nro cheque, transferencia…"
+                  className="erp-input w-full"
+                />
+              </div>
+              <div className="flex flex-col justify-end">
+                {paymentCondition === 'Cuenta Corriente' || paymentCondition === 'Anticipo de Obra' ? (
+                  <div className="bg-amber-50 border border-amber-200 p-2 text-[10px] text-amber-800 leading-tight">
+                    <strong>Pago parcial:</strong> La factura quedará en estado <em>Cuenta Corriente</em>.
+                    Se generará un recibo automáticamente por el monto cobrado.
+                    El saldo se cancela con recibos posteriores.
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 p-2 text-[10px] text-green-800 leading-tight">
+                    <strong>Pago contado:</strong> Se registrará como factura pagada.
+                    Se generará recibo automáticamente.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="px-3 py-2 text-[10px] text-[#5c7291] flex items-center gap-2">
+              <span>Marque la opción para registrar cobro, anticipo o seña al momento de emitir el comprobante.</span>
+              {(paymentCondition === 'Cuenta Corriente' || paymentCondition === 'Anticipo de Obra') && (
+                <span className="bg-amber-100 border border-amber-300 text-amber-700 px-2 py-0.5 font-bold rounded text-[10px]">
+                  Cond.: {paymentCondition}
+                </span>
               )}
             </div>
           )}
         </div>
-      )}
 
-      <div className="relative mb-2">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Buscar cliente por nombre o agregar producto…"
-          value={searchCustomer || searchProduct}
-          onChange={(e) => {
-            setSearchCustomer(e.target.value);
-            setSearchProduct(e.target.value);
-          }}
-          className="erp-input w-full pl-8"
-        />
-        {(searchCustomer && filteredCustomers.length > 0) && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#9bb3cc] shadow-lg z-20 max-h-40 overflow-auto">
-            {filteredCustomers.map((customer) => (
-              <button key={customer.id} type="button" onClick={() => selectCustomer(customer)} className="w-full px-3 py-1.5 text-left text-xs hover:bg-[#eef3f9] flex justify-between">
-                <span>{customer.name}</span>
-                <span className="text-slate-500">{customer.document}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {(searchProduct && filteredProducts.length > 0) && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#9bb3cc] shadow-lg z-20 max-h-40 overflow-auto">
-            {filteredProducts.map((product) => (
-              <button key={product.id} type="button" onClick={() => addProductToItems(product)} className="w-full px-3 py-1.5 text-left text-xs hover:bg-[#eef3f9] flex justify-between">
-                <span>{product.name}</span>
-                <span>{formatCurrency(product.price)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Items grid */}
-      <div className="overflow-x-auto border border-[#9bb3cc] bg-white">
-        <table className="erp-grid-table min-w-[700px]">
-          <thead>
-            <tr>
-              <th>Descripción / Valor</th>
-              <th className="w-16 text-center">Cant.</th>
-              <th className="w-24 text-right">P. Unit.</th>
-              <th className="w-16 text-center">Dto.%</th>
-              <th className="w-20 text-center">IVA</th>
-              <th className="w-28 text-right">Monto</th>
-              <th className="w-8"></th>
-            </tr>
-          </thead>
-            <tbody>
-              {items.map((item, index) => (
-                <tr key={index}>
-                  <td>
-                    <input
-                      type="text"
-                      value={item.description}
-                      onChange={(e) => updateItem(index, 'description', e.target.value)}
-                      placeholder="Descripción"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))}
-                      className="text-center"
-                      min="1"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={item.unitPrice}
-                      onChange={(e) => updateItem(index, 'unitPrice', Number(e.target.value))}
-                      className="text-right"
-                      min="0"
-                      step="0.01"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={item.discount}
-                      onChange={(e) => updateItem(index, 'discount', Number(e.target.value))}
-                      className="text-center"
-                      min="0"
-                      max="100"
-                    />
-                  </td>
-                  <td>
-                    <select
-                      value={item.taxRate}
-                      onChange={(e) => updateItem(index, 'taxRate', Number(e.target.value))}
-                    >
-                      <option value={0}>0%</option>
-                      <option value={2.5}>2,5%</option>
-                      <option value={5}>5%</option>
-                      <option value={10.5}>10,5%</option>
-                      <option value={21}>21%</option>
-                      <option value={27}>27%</option>
-                    </select>
-                  </td>
-                  <td className="text-right font-semibold px-2">
-                    {formatCurrency(item.total)}
-                  </td>
-                  <td className="text-center">
-                    <button type="button" onClick={() => removeItem(index)} className="text-red-500 hover:text-red-700 p-1">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-      </div>
-
-      <div className="flex items-center justify-between mt-2 px-1 text-[11px] text-[#1a3a5c]">
-        <span>Items: {items.filter(i => i.description).length} · Fila: {items.length}</span>
-        <button type="button" onClick={addItem} className="erp-btn-secondary flex items-center gap-1 text-xs py-1">
-          <Plus className="w-3.5 h-3.5" /> Agregar línea
-        </button>
-      </div>
       </ErpDocumentShell>
     </>
   );

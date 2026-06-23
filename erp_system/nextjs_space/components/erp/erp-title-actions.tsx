@@ -17,7 +17,7 @@ import { NotificationBell } from '@/components/notification-bell';
 import { CommandPalette } from '@/components/command-palette';
 import { ErpUserAvatar } from './erp-user-avatar';
 
-export function ErpTitleActions() {
+export function ErpTitleActions({ centered = false }: { centered?: boolean }) {
   const { data: session } = useSession();
   const router = useRouter();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -27,8 +27,8 @@ export function ErpTitleActions() {
   const userName = session?.user?.name || 'Usuario';
   const userEmail = session?.user?.email || '';
   const userImage = session?.user?.image || null;
-  const userRole = (session?.user as any)?.role || 'user';
-  const companyName = (session?.user as any)?.companyName || null;
+  const userRole = session?.user?.role || 'user';
+  const companyName = session?.user?.companyName || null;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -53,23 +53,26 @@ export function ErpTitleActions() {
 
   return (
     <>
-      <div className="flex items-center gap-1 shrink-0">
-        {companyName && (
-          <div className="hidden xl:flex items-center gap-1.5 px-2 py-0.5 bg-white/10 border border-white/20 text-[11px] max-w-[160px]">
-            <Building2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{companyName}</span>
-          </div>
-        )}
-
+      {/* Cuando centered=true el buscador crece al centro; sino es solo el grupo derecho */}
+      <div className={`flex items-center gap-1 ${centered ? 'flex-1 justify-center' : 'shrink-0'}`}>
+        {/* Buscador global — centrado si centered=true */}
         <button
           type="button"
           onClick={() => setShowCommandPalette(true)}
-          className="erp-titlebar-btn hidden sm:flex items-center gap-1.5 px-2 min-w-[140px]"
-          title="Buscar (Ctrl+K)"
+          className={`erp-titlebar-btn hidden sm:flex items-center gap-2 px-3 h-7 border border-white/30 bg-white/10 hover:bg-white/20 transition-colors ${
+            centered
+              ? 'w-full max-w-[480px] xl:max-w-[600px]'
+              : 'min-w-[220px] xl:min-w-[300px]'
+          }`}
+          title="Buscar clientes, facturas, productos... (Ctrl+K)"
         >
-          <Search className="w-3.5 h-3.5" />
-          <span className="text-[11px] opacity-80 truncate">Buscar…</span>
+          <Search className="w-3.5 h-3.5 shrink-0 opacity-80" />
+          <span className="text-[11px] opacity-70 truncate flex-1 text-left">Clientes, facturas, productos…</span>
+          <kbd className="hidden lg:inline-flex items-center px-1 py-0 text-[9px] font-mono bg-white/15 border border-white/25 leading-tight text-white/60">Ctrl+K</kbd>
         </button>
+
+        {/* Separador visual cuando está centrado */}
+        {centered && <div className="hidden sm:block w-px h-5 bg-white/20 mx-1" />}
 
         <button
           type="button"

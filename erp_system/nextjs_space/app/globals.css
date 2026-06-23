@@ -317,16 +317,6 @@ button, a, input, select, textarea {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.btn-tf-primary {
-  @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white
-    bg-[#625bf6] hover:bg-[#5249e0] transition-colors;
-}
-
-.btn-tf-outline {
-  @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-semibold
-    border border-[#625bf6] text-[#625bf6] hover:bg-[#625bf6]/5 transition-colors;
-}
-
 .btn-secondary {
   @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700
     bg-white border border-slate-200
@@ -386,7 +376,7 @@ button, a, input, select, textarea {
 }
 .dash-quick-action:hover { @apply brightness-110; transform: none; }
 
-/* ERP desktop + Dux marketing */
+/* ERP desktop */
 .erp-app {
   @apply bg-[#dce6f2];
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -449,16 +439,117 @@ button, a, input, select, textarea {
 .erp-input {
   @apply h-7 px-2 text-xs border border-[#9bb3cc] bg-white text-[#1a3a5c] focus:outline-none focus:border-[#2563ad] focus:ring-1 focus:ring-[#2563ad]/30;
 }
+/* ─── ERP Grid Table — estilo Dragonfish (filas lavanda alternadas) ─── */
 .erp-grid-table { @apply w-full border-collapse text-xs; }
 .erp-grid-table thead th {
-  @apply bg-[#c5d4e8] border border-[#9bb3cc] px-2 py-1.5 text-left font-bold text-[#1a3a5c];
+  background: #9baac8;
+  border: 1px solid #7890b8;
+  padding: 3px 8px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  color: #ffffff;
+  white-space: nowrap;
 }
-.erp-grid-table tbody td { @apply border border-[#b8c9dc] p-0; }
-.erp-grid-table tbody tr:nth-child(even) { @apply bg-[#eef3f9]; }
-.erp-grid-table tbody tr:nth-child(odd) { @apply bg-white; }
+.erp-grid-table tbody td {
+  border: 1px solid #b8c4dc;
+  padding: 0;
+  font-size: 11px;
+  color: #1a2a4c;
+}
+.erp-grid-table tbody tr:nth-child(odd)  { background: #ffffff; }
+.erp-grid-table tbody tr:nth-child(even) { background: #dde3f4; }
+.erp-grid-table tbody tr:hover           { background: #c8d0ee !important; }
+.erp-grid-table tbody tr.selected,
+.erp-grid-table tbody tr[data-selected="true"] { background: #6677cc !important; color: #fff !important; }
+.erp-grid-table tbody tr.selected td,
+.erp-grid-table tbody tr[data-selected="true"] td { color: #fff !important; }
+.erp-grid-table tbody td .cell-text { @apply px-2 py-1 block truncate; }
 .erp-grid-table tbody input, .erp-grid-table tbody select {
-  @apply w-full h-7 px-2 text-xs border-0 bg-transparent focus:bg-white focus:outline focus:outline-1 focus:outline-[#2563ad];
+  @apply w-full h-6 px-2 text-xs border-0 bg-transparent focus:bg-white focus:outline focus:outline-1 focus:outline-[#2563ad];
 }
+/* Pie de grilla */
+.erp-grid-footer {
+  background: #dde3f4;
+  border: 1px solid #b8c4dc;
+  border-top: 2px solid #9baac8;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #3a4a7c;
+  font-weight: 600;
+}
+/* ─── Panel de totales Dragonfish ─── */
+.erp-totals-panel {
+  background: #f4f6fc;
+  border: 1px solid #b8c4dc;
+  min-width: 220px;
+}
+.erp-totals-panel .totals-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #dde3f4;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #1a2a4c;
+}
+.erp-totals-panel .totals-row:last-child { border-bottom: none; }
+.erp-totals-panel .totals-label { color: #4a5a8c; font-size: 10px; }
+.erp-totals-panel .totals-value { font-weight: 700; font-family: monospace; text-align: right; min-width: 80px; }
+.erp-totals-panel .totals-total-row {
+  background: #2563ad;
+  color: #fff;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.erp-totals-panel .totals-total-label { font-size: 18px; font-weight: 900; }
+.erp-totals-panel .totals-total-value { font-size: 22px; font-weight: 900; font-family: monospace; }
+/* ─── Header de documento ERP (dos columnas) ─── */
+.erp-doc-header {
+  background: #f0f3f9;
+  border: 1px solid #b8c4dc;
+  padding: 6px 10px;
+  display: grid;
+  gap: 0 12px;
+}
+.erp-doc-field {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.erp-doc-field label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4a5a8c;
+  text-align: right;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+/* ─── Toolbar de navegación tipo ERP ─── */
+.erp-nav-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #e8edf5;
+  border-bottom: 1px solid #b8c4dc;
+}
+.erp-nav-btn {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #9baac8;
+  background: #f4f6fc;
+  color: #1a3a5c;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+.erp-nav-btn:hover { background: #dde3f4; }
+.erp-nav-btn:disabled { opacity: 0.4; cursor: default; }
 .erp-btn-primary {
   @apply px-4 py-1.5 text-sm font-semibold text-white bg-[#2563ad] border border-[#1e4d8c] hover:bg-[#1e4d8c] disabled:opacity-50;
 }
@@ -468,16 +559,16 @@ button, a, input, select, textarea {
 
 /* Module navigation (replaces sidebar) */
 .erp-module-nav {
-  @apply bg-[#e4ecf5] border-b border-[#b8c9dc] relative z-40;
+  @apply bg-[#e4ecf5] border-b border-[#b8c9dc] relative z-40 min-h-[42px];
 }
 .erp-module-tab {
-  @apply flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#1a3a5c] whitespace-nowrap hover:bg-white/70 border border-transparent;
+  @apply flex items-center gap-1.5 px-3.5 py-2.5 text-[12px] font-semibold text-[#1a3a5c] whitespace-nowrap hover:bg-white/70 border border-transparent h-full;
 }
 .erp-module-tab-active {
-  @apply bg-white border-[#9bb3cc] text-[#1e4d8c];
+  @apply bg-white border-[#9bb3cc] border-b-white text-[#1e4d8c];
 }
 .erp-module-dropdown {
-  @apply absolute left-0 top-full mt-0.5 min-w-[220px] max-h-[70vh] overflow-y-auto bg-white border border-[#b8c9dc] shadow-lg z-[100] py-1;
+  @apply absolute left-0 top-full mt-0.5 min-w-[240px] max-h-[70vh] overflow-y-auto bg-white border border-[#b8c9dc] shadow-lg z-[100] py-1;
 }
 .erp-titlebar-btn {
   @apply p-1.5 text-white/90 hover:bg-white/10 hover:text-white border border-transparent hover:border-white/20;
@@ -513,90 +604,63 @@ button, a, input, select, textarea {
   /* páginas sin shell ERP mantienen fondo desktop */
 }
 
-.dux-hero-gradient {
-  background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 50%, #eef6ff 100%);
-}
-.dux-btn-primary {
-  @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-[#2563eb] text-white font-semibold hover:bg-[#1d4ed8] transition-colors shadow-sm;
-}
-.dux-btn-outline {
-  @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 border-[#2563eb] text-[#2563eb] font-semibold hover:bg-[#eff6ff] transition-colors;
-}
-
 @layer base {
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
- 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
- 
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
- 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
- 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
- 
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
- 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 217 91% 60%;
- 
     --radius: 0.75rem;
   }
- 
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
- 
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
- 
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
- 
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
- 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
- 
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
- 
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
- 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
- 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
   }
-}
- 
-@layer base {
+
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight;
   }

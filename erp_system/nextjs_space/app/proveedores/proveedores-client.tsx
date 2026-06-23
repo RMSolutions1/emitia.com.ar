@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Building2, Phone, Mail, FileText, Truck, X, MapPin, Loader2, IdCard, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Building2, Phone, Mail, FileText, Truck, X, MapPin, Loader2, IdCard, CheckCircle2, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ErpPageShell } from '@/components/erp/erp-page-shell';
+import { ErpPageShell, ErpKpiBox } from '@/components/erp/erp-page-shell';
 import { useErpSession } from '@/components/erp/use-erp-session';
 
 interface Supplier {
@@ -194,145 +194,82 @@ export function ProveedoresClient() {
         }},
       ]}
     >
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100/60 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-blue-100">
-              <Building2 className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500">Total Proveedores</p>
-              <p className="text-xl font-bold text-slate-900">{suppliers.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-100/60 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-green-100">
-              <Truck className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500">Órdenes de Compra</p>
-              <p className="text-xl font-bold text-green-600">{totalOrders}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-100/60 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-purple-100">
-              <FileText className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500">Con CUIT</p>
-              <p className="text-xl font-bold text-purple-600">{suppliers.filter(s => s.cuit).length}</p>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-2">
+      {/* KPIs estilo ERP */}
+      <div className="grid grid-cols-3 gap-2">
+        <ErpKpiBox label="Total Proveedores" value={suppliers.length} accent="primary" />
+        <ErpKpiBox label="Órdenes de Compra" value={totalOrders} />
+        <ErpKpiBox label="Con CUIT" value={suppliers.filter(s => s.cuit).length} />
       </div>
 
-      <div className="erp-panel p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+      {/* Grilla de proveedores */}
+      <div className="erp-panel">
+        <div className="erp-panel-header flex items-center justify-between">
+          <span>Lista de Proveedores</span>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#5c7291]" />
             <input
               type="text"
-              placeholder="Buscar por nombre, CUIT o contacto..."
+              placeholder="Buscar…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 premium-input text-sm"
+              className="erp-input pl-6 w-48"
             />
           </div>
         </div>
-      </div>
-
-      {/* Table */}
-      <div className="erp-panel overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="space-y-4"><div className="skeleton-shimmer h-12 rounded-2xl" /><div className="skeleton-shimmer h-[300px] rounded-2xl" /></div>
+          <div className="flex items-center justify-center py-12 text-[#5c7291] text-xs gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
           </div>
         ) : filteredSuppliers.length === 0 ? (
-          <div className="text-center py-16">
-            <Building2 className="w-14 h-14 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">No hay proveedores registrados</p>
-            <p className="text-slate-400 text-sm mt-1">Agregá proveedores para gestionar tus compras</p>
+          <div className="flex flex-col items-center justify-center py-12 text-[#5c7291]">
+            <Building2 className="w-10 h-10 mb-2 opacity-30" />
+            <p className="text-xs">No hay proveedores. Presioná <strong>Nuevo</strong> para agregar.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+            <table className="erp-grid-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Proveedor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">CUIT</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Contacto</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Dirección</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">Órdenes</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acciones</th>
+                  <th>Razón Social / Proveedor</th>
+                  <th className="w-32">CUIT</th>
+                  <th>Contacto</th>
+                  <th>Teléfono / Email</th>
+                  <th>Dirección</th>
+                  <th className="w-16 text-center">Órdenes</th>
+                  <th className="w-16 text-center">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {filteredSuppliers.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="p-1.5 rounded-md bg-blue-50">
-                          <Building2 className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900 text-sm">{supplier.name}</p>
-                          {supplier.contactName && <p className="text-xs text-slate-400">{supplier.contactName}</p>}
-                        </div>
+                  <tr key={supplier.id} className="cursor-pointer" onClick={() => handleEdit(supplier)}>
+                    <td>
+                      <span className="cell-text font-semibold">{supplier.name}</span>
+                    </td>
+                    <td><span className="cell-text font-mono text-[10px]">{supplier.cuit ?? '-'}</span></td>
+                    <td><span className="cell-text">{supplier.contactName ?? '-'}</span></td>
+                    <td>
+                      <div className="px-2 py-0.5 text-[11px]">
+                        {supplier.email && <div>{supplier.email}</div>}
+                        {supplier.phone && <div className="text-[#5c7291]">{supplier.phone}</div>}
+                        {!supplier.email && !supplier.phone && '-'}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      {supplier.cuit ? (
-                        <span className="text-sm text-slate-900 font-mono">{supplier.cuit}</span>
-                      ) : (
-                        <span className="text-xs text-slate-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="space-y-0.5">
-                        {supplier.email && (
-                          <p className="text-xs text-slate-500 flex items-center gap-1">
-                            <Mail className="w-3 h-3" />{supplier.email}
-                          </p>
-                        )}
-                        {supplier.phone && (
-                          <p className="text-xs text-slate-500 flex items-center gap-1">
-                            <Phone className="w-3 h-3" />{supplier.phone}
-                          </p>
-                        )}
-                        {!supplier.email && !supplier.phone && <span className="text-xs text-slate-400">-</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {supplier.address ? (
-                        <p className="text-xs text-slate-500 flex items-center gap-1 truncate max-w-[180px]">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />{supplier.address}
-                        </p>
-                      ) : (
-                        <span className="text-xs text-slate-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        (supplier._count?.purchaseOrders ?? 0) > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-                      }`}>
+                    <td><span className="cell-text">{supplier.address ?? '-'}</span></td>
+                    <td className="text-center">
+                      <span className={`text-[11px] font-bold ${(supplier._count?.purchaseOrders ?? 0) > 0 ? 'text-green-700' : 'text-[#5c7291]'}`}>
                         {supplier._count?.purchaseOrders ?? 0}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => handleEdit(supplier)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
-                          <Pencil className="w-4 h-4" />
+                    <td className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={(e) => { e.stopPropagation(); handleEdit(supplier); }}
+                          className="erp-toolbtn p-0.5" title="Editar">
+                          <Pencil className="w-3 h-3" />
                         </button>
-                        <button onClick={() => handleDelete(supplier.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
-                          <Trash2 className="w-4 h-4" />
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(supplier.id); }}
+                          className="erp-toolbtn p-0.5 text-red-500 hover:text-red-700" title="Eliminar">
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     </td>
@@ -343,10 +280,8 @@ export function ProveedoresClient() {
           </div>
         )}
         {!loading && filteredSuppliers.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-            <p className="text-xs text-slate-500">
-              Mostrando {filteredSuppliers.length} de {suppliers.length} proveedores
-            </p>
+          <div className="erp-grid-footer">
+            Mostrando {filteredSuppliers.length} de {suppliers.length} proveedor(es)
           </div>
         )}
       </div>

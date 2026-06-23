@@ -4,8 +4,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { ChevronDown, Menu, X, Zap } from 'lucide-react';
+import { ChevronDown, Menu, X, Zap, LayoutDashboard, FileSpreadsheet, Package, Landmark, Sparkles, Settings, Shield, Building2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { buildErpNavSections, type ErpNavItem, type ErpNavSection } from '@/lib/erp-navigation';
+
+const SECTION_ICONS: Record<string, LucideIcon> = {
+  'Inicio': LayoutDashboard,
+  'Facturación': FileSpreadsheet,
+  'Gestión': Package,
+  'Finanzas': Landmark,
+  'IA': Sparkles,
+  'Config': Settings,
+  'Empresa': Building2,
+  'Admin': Shield,
+};
 
 function isActive(pathname: string, item: ErpNavItem): boolean {
   if (item.href) return pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -66,16 +78,22 @@ function NavDropdown({
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="true"
-        className={`erp-module-tab ${sectionActive ? 'erp-module-tab-active' : ''}`}
-      >
-        {section.label}
-        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+      {(() => {
+        const SectionIcon = SECTION_ICONS[section.label];
+        return (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-haspopup="true"
+            className={`erp-module-tab ${sectionActive ? 'erp-module-tab-active' : ''}`}
+          >
+            {SectionIcon && <SectionIcon className="w-3 h-3 shrink-0" />}
+            {section.label}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        );
+      })()}
       {open && (
         <div className="erp-module-dropdown">
           {section.items.map((item) => renderLink(item))}
@@ -88,7 +106,7 @@ function NavDropdown({
 export function ErpModuleNav({ mobileOpen, onCloseMobile }: { mobileOpen?: boolean; onCloseMobile?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || 'user';
+  const userRole = session?.user?.role || 'user';
   const sections = useMemo(() => buildErpNavSections(userRole), [userRole]);
 
   return (
@@ -121,39 +139,27 @@ export function ErpModuleNav({ mobileOpen, onCloseMobile }: { mobileOpen?: boole
             {mobileOpen ? (
               <div className="mb-2">
                 <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#5c7291]">{section.label}</p>
-                {section.items.map((item) => {
-                  if (item.children) {
-                    return item.children.map((child) => {
-                      if (!child.href) return null;
-                      const Icon = child.icon;
-                      const active = pathname === child.href;
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={onCloseMobile}
-                          className={`flex items-center gap-2 px-3 py-2 text-xs ${active ? 'bg-[#2563ad] text-white' : 'text-[#1a3a5c] hover:bg-white'}`}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          {child.name}
-                        </Link>
-                      );
-                    });
-                  }
-                  if (!item.href) return null;
-                  const Icon = item.icon;
-                  const active = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onCloseMobile}
-                      className={`flex items-center gap-2 px-3 py-2 text-xs ${active ? 'bg-[#2563ad] text-white' : 'text-[#1a3a5c] hover:bg-white'}`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {item.name}
-                    </Link>
-                  );
+                {section.items.flatMap((item) => {
+                  const leaves = (item.children?.length
+                    ? item.children.filter((c): c is ErpNavItem & { href: string } => !!c.href)
+                    : item.href
+                      ? [item as ErpNavItem & { href: string }]
+                      : []);
+                  return leaves.map((leaf) => {
+                    const Icon = leaf.icon;
+                    const active = pathname === leaf.href || pathname.startsWith(`${leaf.href}/`);
+                    return (
+                      <Link
+                        key={leaf.href}
+                        href={leaf.href}
+                        onClick={onCloseMobile}
+                        className={`flex items-center gap-2 px-3 py-2 text-xs ${active ? 'bg-[#2563ad] text-white' : 'text-[#1a3a5c] hover:bg-white'}`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {leaf.name}
+                      </Link>
+                    );
+                  });
                 })}
               </div>
             ) : (

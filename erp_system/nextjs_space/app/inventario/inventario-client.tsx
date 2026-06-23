@@ -17,6 +17,9 @@ interface Product {
   stock: number;
   minStock: number;
   active: boolean;
+  brand?: string;
+  unit?: string;
+  description?: string;
   category?: { id: string; name: string };
 }
 
@@ -28,7 +31,7 @@ interface Category {
 export function InventarioClient() {
   const router = useRouter();
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || 'ADMIN';
+  const userRole = session?.user?.role || 'ADMIN';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +49,9 @@ export function InventarioClient() {
     stock: '',
     minStock: '10',
     categoryId: '',
+    brand: '',
+    unit: 'unidad',
+    description: '',
   });
 
   useEffect(() => {
@@ -134,6 +140,9 @@ export function InventarioClient() {
       stock: product.stock?.toString() ?? '',
       minStock: product.minStock?.toString() ?? '10',
       categoryId: product.category?.id ?? '',
+      brand: product.brand ?? '',
+      unit: product.unit ?? 'unidad',
+      description: product.description ?? '',
     });
     setShowForm(true);
   };
@@ -156,7 +165,7 @@ export function InventarioClient() {
   const resetForm = () => {
     setShowForm(false);
     setEditingProduct(null);
-    setFormData({ name: '', sku: '', barcode: '', price: '', cost: '', stock: '', minStock: '10', categoryId: '' });
+    setFormData({ name: '', sku: '', barcode: '', price: '', cost: '', stock: '', minStock: '10', categoryId: '', brand: '', unit: 'unidad', description: '' });
   };
 
   const getMargin = (price: number, cost: number) => {
@@ -229,173 +238,190 @@ export function InventarioClient() {
 
       {/* Add/Edit Form */}
       {showForm && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
-            </h3>
-            <button onClick={resetForm} className="p-1 hover:bg-slate-100 rounded-xl">
-              <X className="w-5 h-5 text-slate-500" />
+        <div className="erp-panel">
+          <div className="erp-panel-header flex items-center justify-between">
+            <span>{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</span>
+            <button onClick={resetForm} className="text-white/70 hover:text-white">
+              <X className="w-4 h-4" />
             </button>
           </div>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-3">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Fila 1: Nombre, SKU, Código de barras, Marca */}
             <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Nombre / Descripción *</label>
               <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required
-                className="w-full px-3 py-2 premium-input text-sm" />
+                className="erp-input w-full" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">SKU *</label>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">SKU *</label>
               <input type="text" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} required
-                className="w-full px-3 py-2 premium-input text-sm" />
+                className="erp-input w-full font-mono" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Código de Barras</label>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Marca</label>
+              <input type="text" value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                placeholder="Ej: Weber, Klaukol…"
+                className="erp-input w-full" />
+            </div>
+            {/* Fila 2: Cód. barras, Unidad, Categoría, Proveedor */}
+            <div>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Código de Barras</label>
               <input type="text" value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                className="w-full px-3 py-2 premium-input text-sm" />
+                className="erp-input w-full font-mono" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Costo</label>
-              <input type="number" step="0.01" value={formData.cost} onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-                className="w-full px-3 py-2 premium-input text-sm" />
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Unidad de Medida</label>
+              <select value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="erp-input w-full">
+                {['unidad', 'kg', 'g', 'bolsa', 'm', 'm²', 'm³', 'litro', 'caja', 'par', 'rollo', 'paquete', 'bidón', 'lata'].map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Precio Venta *</label>
-              <input type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required
-                className="w-full px-3 py-2 premium-input text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Stock</label>
-              <input type="number" value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                className="w-full px-3 py-2 premium-input text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Stock Mínimo</label>
-              <input type="number" value={formData.minStock} onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
-                className="w-full px-3 py-2 premium-input text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Categoría</label>
               <select value={formData.categoryId} onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                className="w-full px-3 py-2 premium-input text-sm">
+                className="erp-input w-full">
                 <option value="">Sin categoría</option>
                 {categories.map((cat) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
               </select>
             </div>
-            {formData.cost && formData.price && (
-              <div className="flex items-end">
-                <div className="px-4 py-2 bg-green-50 border border-green-200 rounded-lg w-full text-center">
-                  <p className="text-xs text-green-600">Margen</p>
-                  <p className="text-lg font-bold text-green-700">
-                    {((parseFloat(formData.price) - parseFloat(formData.cost)) / parseFloat(formData.cost) * 100).toFixed(1)}%
-                  </p>
-                </div>
+            <div>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Descripción adicional</label>
+              <input type="text" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Especificaciones, medidas…"
+                className="erp-input w-full" />
+            </div>
+            {/* Fila 3: Precios y stock */}
+            <div>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Costo ($)</label>
+              <input type="number" step="0.01" value={formData.cost} onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                className="erp-input w-full text-right font-mono" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Precio Venta ($) *</label>
+              <input type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required
+                className="erp-input w-full text-right font-mono font-bold" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Stock Actual</label>
+              <input type="number" value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                className="erp-input w-full text-right font-mono" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#4a5a8c] mb-0.5 uppercase">Stock Mínimo</label>
+              <input type="number" value={formData.minStock} onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
+                className="erp-input w-full text-right font-mono" />
+            </div>
+            {formData.cost && formData.price && parseFloat(formData.cost) > 0 && (
+              <div className="lg:col-span-4 flex items-center gap-3 bg-[#e8f4ea] border border-[#a8d4ae] px-3 py-1.5">
+                <span className="text-xs text-[#2a5c2a] font-bold">Margen:</span>
+                <span className="text-lg font-black text-[#1e7c1e]">
+                  {((parseFloat(formData.price) - parseFloat(formData.cost)) / parseFloat(formData.cost) * 100).toFixed(1)}%
+                </span>
+                <span className="text-xs text-[#4a8c4a]">sobre costo</span>
               </div>
             )}
-            <div className="lg:col-span-4 flex gap-3 justify-end pt-2">
-              <button type="button" onClick={resetForm}
-                className="px-5 py-2 border border-slate-100/60 rounded-xl font-medium text-sm hover:bg-slate-100 transition-colors">Cancelar</button>
+            <div className="lg:col-span-4 flex gap-2 justify-end pt-2 border-t border-[#b8c4dc]">
+              <button type="button" onClick={resetForm} className="erp-btn-secondary text-xs px-4 py-1.5">Cancelar</button>
               <button type="submit"
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors">
+                className="erp-btn-primary text-xs px-6 py-1.5">
                 {editingProduct ? 'Actualizar' : 'Crear Producto'}
               </button>
             </div>
           </form>
+          </div>
         </div>
       )}
 
-      {/* Products Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 overflow-hidden">
+      {/* Products Table — estilo Dragonfish */}
+      <div className="erp-panel">
+        <div className="erp-panel-header">Artículos / Productos</div>
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="space-y-4"><div className="skeleton-shimmer h-12 rounded-2xl" /><div className="skeleton-shimmer h-[300px] rounded-2xl" /></div>
+          <div className="flex items-center justify-center py-12 text-[#5c7291] text-xs gap-2">
+            <Package className="w-4 h-4 animate-pulse" /> Cargando…
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-16">
-            <Package className="w-14 h-14 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">No hay productos</p>
-            <p className="text-slate-400 text-sm mt-1">Agregá tu primer producto con el botón de arriba</p>
+          <div className="flex flex-col items-center justify-center py-12 text-[#5c7291]">
+            <Package className="w-10 h-10 mb-2 opacity-30" />
+            <p className="text-xs">No hay productos. Presioná <strong>Nuevo</strong> para agregar.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+            <table className="erp-grid-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Producto</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">SKU</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Categoría</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Costo</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Precio</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">Margen</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase">Stock</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acciones</th>
+                  <th>Producto / Descripción</th>
+                  <th className="w-24">Cód. / SKU</th>
+                  <th className="w-20">Unidad</th>
+                  <th className="w-24">Marca</th>
+                  <th className="w-28">Categoría</th>
+                  <th className="w-24 text-right">Costo</th>
+                  <th className="w-24 text-right">Precio</th>
+                  <th className="w-16 text-center">Margen</th>
+                  <th className="w-20 text-center">Stock</th>
+                  <th className="w-16 text-center">Estado</th>
+                  <th className="w-16 text-center">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {filteredProducts.map((product) => {
                   const isLowStock = product.stock > 0 && product.stock <= product.minStock;
                   const isOutOfStock = product.stock <= 0;
                   const margin = getMargin(product.price, product.cost);
                   return (
-                    <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-md ${isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : 'bg-blue-50'}`}>
-                            <Package className={`w-4 h-4 ${isOutOfStock ? 'text-red-500' : isLowStock ? 'text-yellow-500' : 'text-blue-500'}`} />
-                          </div>
-                          <span className="font-medium text-slate-900 text-sm">{product.name}</span>
+                    <tr key={product.id} className="cursor-pointer" onClick={() => handleEdit(product)}>
+                      <td>
+                        <div className="px-2 py-0.5">
+                          <div className="font-medium text-[11px] text-[#1a2a4c]">{product.name}</div>
+                          {product.description && <div className="text-[9px] text-[#5c7291] truncate">{product.description}</div>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-500 font-mono">{product.sku}</td>
-                      <td className="px-4 py-3">
-                        {product.category ? (
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{product.category.name}</span>
-                        ) : (
-                          <span className="text-xs text-slate-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-600 text-right">
+                      <td><span className="cell-text font-mono text-[10px]">{product.sku}</span></td>
+                      <td><span className="cell-text text-[10px]">{product.unit ?? 'unidad'}</span></td>
+                      <td><span className="cell-text text-[10px]">{product.brand ?? '-'}</span></td>
+                      <td><span className="cell-text">{product.category?.name ?? '-'}</span></td>
+                      <td className="text-right pr-2 font-mono text-[11px]">
                         ${product.cost?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-900 text-right">
+                      <td className="text-right pr-2 font-mono text-[11px] font-bold">
                         ${product.price?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        {margin ? (
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            parseFloat(margin) >= 30 ? 'bg-green-100 text-green-700' :
-                            parseFloat(margin) >= 15 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {margin}%
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">-</span>
-                        )}
+                      <td className="text-center">
+                        <span className={`text-[10px] font-bold px-1.5 ${
+                          !margin ? 'text-[#5c7291]' :
+                          parseFloat(margin) >= 30 ? 'text-green-700' :
+                          parseFloat(margin) >= 15 ? 'text-yellow-700' :
+                          'text-red-700'
+                        }`}>{margin ? `${margin}%` : '-'}</span>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            isOutOfStock ? 'bg-red-100 text-red-700' :
-                            isLowStock ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {product.stock}
-                          </span>
+                      <td className="text-center">
+                        <div className="flex flex-col items-center">
+                          <span className={`text-[11px] font-bold ${
+                            isOutOfStock ? 'text-red-600' :
+                            isLowStock ? 'text-yellow-600' :
+                            'text-green-700'
+                          }`}>{product.stock}</span>
                           {(isLowStock || isOutOfStock) && (
-                            <AlertTriangle className={`w-3.5 h-3.5 ${isOutOfStock ? 'text-red-500' : 'text-yellow-500'}`} />
+                            <AlertTriangle className={`w-3 h-3 ${isOutOfStock ? 'text-red-500' : 'text-yellow-500'}`} />
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handleEdit(product)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
-                            <Edit className="w-4 h-4" />
+                      <td className="text-center">
+                        <span className={`text-[10px] font-bold ${product.active ? 'text-green-700' : 'text-[#5c7291]'}`}>
+                          {product.active ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); handleEdit(product); }}
+                            className="erp-toolbtn p-0.5" title="Editar">
+                            <Edit className="w-3 h-3" />
                           </button>
-                          <button onClick={() => handleDelete(product.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
-                            <Trash2 className="w-4 h-4" />
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(product.id); }}
+                            className="erp-toolbtn p-0.5 text-red-500 hover:text-red-700" title="Eliminar">
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
@@ -406,15 +432,13 @@ export function InventarioClient() {
             </table>
           </div>
         )}
-        {/* Results count */}
+        {/* Pie de grilla */}
         {!loading && filteredProducts.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-            <p className="text-xs text-slate-500">
-              Mostrando {filteredProducts.length} de {products.length} productos
-              {totalValue > 0 && (
-                <> • Valor total en stock: <span className="font-medium">${totalValue.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span></>
-              )}
-            </p>
+          <div className="erp-grid-footer">
+            Mostrando {filteredProducts.length} de {products.length} artículo(s)
+            {totalValue > 0 && (
+              <> · Valor total en stock: <strong>${totalValue.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</strong></>
+            )}
           </div>
         )}
       </div>

@@ -8,6 +8,7 @@ import {
   Printer,
   Save,
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { ErpAppChrome } from './erp-app-chrome';
 
 interface ErpToolbarAction {
@@ -59,6 +60,9 @@ export function ErpDocumentShell({
   observations,
   footerExtra,
 }: ErpDocumentShellProps) {
+  const { data: session } = useSession();
+  const companyName = (session?.user as any)?.companyName || 'Gestión Comercial';
+
   const toolbarActions: ErpToolbarAction[] = [
     { label: 'Nuevo', icon: <FilePlus2 className="w-4 h-4" />, onClick: onNew, shortcut: 'Ctrl+N' },
     { label: 'Guardar', icon: <Save className="w-4 h-4" />, onClick: onSave, disabled: saveDisabled || saveLoading, shortcut: 'Ctrl+G' },
@@ -95,8 +99,10 @@ export function ErpDocumentShell({
       )}
       <div className="erp-actions flex items-center justify-between px-4 py-2 bg-[#eef3f9] border-t border-[#b8c9dc] shrink-0">
         <div className="flex items-center gap-2 text-xs text-[#5c7291]">
-          <div className="w-8 h-8 rounded bg-[#2563ad] text-white flex items-center justify-center font-bold text-sm">E</div>
-          <span>EMITIA · Gestión Comercial</span>
+          <div className="w-7 h-7 bg-[#2563ad] border border-[#1e4d8c] text-white flex items-center justify-center font-bold text-xs">
+            {companyName.charAt(0).toUpperCase()}
+          </div>
+          <span className="truncate max-w-[200px]">{companyName}</span>
         </div>
         <div className="flex items-center gap-2">
           {footerExtra}
